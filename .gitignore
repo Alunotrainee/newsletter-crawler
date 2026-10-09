@@ -1,0 +1,49 @@
+# dependências (sem barra: cobre diretório real E o symlink usado em worktrees)
+node_modules
+
+# segredos — NUNCA commitar
+.env
+.env.*
+!.env.example
+
+# dados em runtime (banco, exports, logs) — ancorado na RAIZ de propósito: o snapshot do
+# webapp (webapp/public/data/) é COMMITADO (é a base que o site estático serve na Vercel)
+/data/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.log
+
+# Memória do Claude Code (fica em ~/.claude; ignora se algo aparecer dentro do repo).
+# NÃO confundir com as skills em .agents/skills/, que SÃO versionadas de propósito.
+memory/
+**/memory/
+MEMORY.md
+.claude/memory/
+.claude/plans/
+
+# webapp (Vite): build e screenshots de verificação — o snapshot em webapp/public/data/ é versionado
+webapp/dist/
+webapp/scripts/out/
+
+# Playwright (caso configurem cache local)
+/test-results/
+/playwright-report/
+.cache/
+
+# OS
+.DS_Store
+
+# Agent skills: disposable task plan + ephemeral validation tokens
+TASK_PLAN.md
+.agents/skills/.validation/
+
+.deep-orchestrator/
+
+# eval Jev: cache de respostas pagas (reusado nas varreduras de limiar), ledger de custo isolado
+# do eval e saídas brutas dos runs — locais por máquina, nunca versionados.
+eval/jev/.cache/
+eval/jev/.ledger.db*
+eval/jev/out/

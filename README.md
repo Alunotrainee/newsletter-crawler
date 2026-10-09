@@ -1,0 +1,210 @@
+# newsletter-crawler
+
+[![tests](https://github.com/frederico-kluser/newsletter-crawler/actions/workflows/tests.yml/badge.svg)](https://github.com/frederico-kluser/newsletter-crawler/actions/workflows/tests.yml)
+[![license](https://img.shields.io/github/license/frederico-kluser/newsletter-crawler)](LICENSE)
+[![release](https://img.shields.io/github/v/release/frederico-kluser/newsletter-crawler)](https://github.com/frederico-kluser/newsletter-crawler/releases)
+[![node](https://img.shields.io/badge/node-%3E%3D22-brightgreen)](package.json)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/frederico-kluser/newsletter-crawler/badge)](https://securityscorecards.dev/viewer/?uri=github.com/frederico-kluser/newsletter-crawler)
+
+> Crawler de newsletters em **Node.js puro** (ESM, Node ≥ 22, **sem build**) que descobre, extrai, classifica, resume em PT-BR e **busca** artigos — com **menu guiado no terminal** (Ink/React) e as flags diretas.
+
+> Histórico de versões em [CHANGELOG.md](CHANGELOG.md) — atual: **v3.1.0**.
+
+> 🎨 **[ARQUITETURA.html](ARQUITETURA.html)** — a arquitetura inteira desenhada em canvas e explicada
+> para leigos: o pipeline, o paralelismo (governador/lanes), as boas decisões, os gargalos e os números
+> reais da validação. Abra no navegador (arquivo local, zero dependências).
+
+Usa um **LLM (DeepSeek V4 — via OpenRouter ou via API direta da DeepSeek)** para *derivar seletores CSS reutilizáveis* — não para extrair página a página. O seletor é validado com Cheerio, **cacheado por template no SQLite** e só re-derivado quando o cache falha (**self-healing**) — então o custo de LLM da **descoberta/extração** fica próximo de zero por artigo depois do primeiro acerto. Classificação de tags e resumos PT-BR são passes **opcionais** por artigo (rodam automáticos pós-crawl e podem ser desligados).
+
+## Recursos
+- **Crawl multinível** `índice → issue (roundup) → artigo`: abre cada edição e segue os links externos curados; uma página que é uma coleção de notícias é **dividida em N** automaticamente.
+- **Resumível e educado:** fila/frontier no SQLite (`pending → in_progress → done/failed`), `robots.txt` + Crawl-delay, jitter e circuit breaker por host; rejeita interstitials anti-bot (Cloudflare).
+- **Dedup garantido:** o mesmo link nunca é cadastrado 2× (URL canônica pós-redirect + `content_hash` UNIQUE).
+- **Parada por data** (`--since`): coleta do mais novo ao mais antigo e para no piso (issue e artigo).
+- **Re-crawl incremental + delta:** rodar de novo re-visita as fontes e traz **só o que é novo** (para na 1ª página conhecida; nunca re-baixa o que já tem; `--no-refresh` desliga a re-visita). `export`/`busca` mostram só o novo da **última execução** por padrão (`--all` = acervo todo).
+- **Modo agressivo (DEFAULT):** ignora `robots.txt` e finge um navegador real (UA + headers/client-hints) para passar por 403/anti-bot — sem salvar páginas de desafio. `--no-aggressive` (ou `CRAWLER_AGGRESSIVE=false`) volta ao modo educado. Use só onde você tem direito de arquivar.
+- **Curadoria por IA do agregador:** cada issue de fonte `index` vira **itens estruturados** (`kind` news/tool/release + seção + o blurb do próprio agregador) extraídos pelo modelo em paralelo (chunks). O item é **cadastrado já na curadoria** — se o alvo for raso/bloqueado (ferramenta em GitHub, release page…), a informação do agregador fica; o corpo do alvo é **enriquecimento**. Patrocínio/vaga não entram (backstop determinístico além do LLM).
+- **Limpeza por IA antes de salvar:** o conteúdo extraído passa pelo modelo p/ remover sujeira de UI (menus, contadores, subscribe, rodapé) preservando o texto real — com régua anti-truncamento (`sanityCheckCleaned`); rejeitou, mantém o original e registra o motivo.
+- **Verificação pós-cadastro:** varredura paralela dá um veredito `ok|suspect|junk` + notas a CADA artigo salvo (persistidos). `ncrawl verify` re-roda sob demanda.
+- **Trace total + `ncrawl inspect`:** todo estágio (fetch, curadoria, item salvo/ignorado com motivo, limpeza, enriquecimento, verificação) grava na tabela `events`; `inspect` mostra a árvore da run (itens por issue, vereditos, custos por etapa) e `--url <substr>` audita um link específico.
+- **Seletores por IA lendo a página real:** links/conteúdo (xhigh) e **data por item** (high, par CSS+regex) são derivados do HTML real, validados contra a própria página, cacheados por template de weekly e re-derivados quando quebram (self-healing).
+- **Tags multi-faceta** contra um vocabulário controlado (9 facetas, ~800 tags) e **resumos + títulos em PT-BR**.
+- **Busca na base 100% IA:** no CLI/TUI, exaustiva (high, avalia cada artigo do escopo) ou por tags (high); no **buscador web**, soft **em lote** (1 chamada por ~40 artigos) ou **profunda** por artigo com escopo de **fontes+período** e confirmação de custo — sempre devolvendo **Notícias** e **Ferramentas**. Na TUI os resultados são navegáveis, com **preview** do artigo e abertura do link no navegador.
+- **Histórico de buscas (a busca não é mais efêmera):** toda busca IA concluída é **salva automaticamente**; **reabrir** mostra o resultado **congelado** re-hidratado do acervo (**zero LLM**) e **rodar de novo** re-paga com a confirmação de custo usual. Persistido no **SQLite** (CLI/TUI e buscador web local — tabela `searches`) e no **navegador** (webapp estático — localStorage). Dropdown de recentes no campo + painel/tela de histórico nas três frentes.
+- **Publicação do site (push = deploy):** um **buscador estático** (`webapp/`, Vite+React, sem backend) lê um snapshot JSON do acervo; `git push` na main re-exporta o snapshot (hook `.githooks/pre-push`) e a **Vercel** publica sozinha (Git integration). Veja [Publicar o site](#publicar-o-site-buscador-estático).
+- **Menu guiado (TUI)** bilíngue PT/EN que monta os parâmetros, mostra o comando equivalente e exibe progresso ao vivo — sem substituir as flags.
+
+## Como funciona (visão geral)
+
+```
+seed (listing) ─► fetchSmart (got → Playwright se precisar de JS)
+                     │
+                     ├─ cache de seletor? ──sim──► aplica (Cheerio) ──► enfileira artigos
+                     │
+                     └─ não/quebrou ─► o modelo (reasoning xhigh) deriva seletor
+                                        └─ valida (≥3 links) ─► salva no SQLite ─► usa p/ todas as páginas
+                                        └─ falhou ─► fallback item-a-item (mesmo modelo)
+
+artigo ─► fetchSmart ─► Readability ──ok──► salva (SQLite)
+                         └─ falhou ─► content selector (xhigh, cacheado) ─► senão ─► o modelo extrai
+```
+
+Tudo passa por uma **fila/frontier no SQLite** (`pending → in_progress → done/failed`), então o crawler é **resumível**: se cair, é só rodar de novo.
+
+## Requisitos
+- Node.js >= 22 (testado em Node 24)
+- Uma chave LLM: OpenRouter (`OPENROUTER_API_KEY`) **ou** DeepSeek direto (`DEEPSEEK_API_KEY` + `LLM_PROVIDER=deepseek`) — veja [Modelos e provedor LLM](#modelos-e-provedor-llm-openrouter-deepseek-direto)
+
+## Instalação
+```bash
+npm install
+npx playwright install chromium      # baixa o browser headless
+cp .env.example .env                 # e preencha a chave do provider que for usar (OPENROUTER_API_KEY ou DEEPSEEK_API_KEY)
+```
+
+## Instalação global (`ncrawl`)
+Para chamar o crawler **de qualquer diretório** como um comando único:
+```bash
+npm run link          # install + playwright + `npm link` + status (setup completo)
+ncrawl key set <sua-chave-openrouter>   # valida na OpenRouter e salva em ~/.newsletter-crawler/.env
+                                        # (a chave da DeepSeek DIRETA vai por env: DEEPSEEK_API_KEY)
+ncrawl status         # já funciona de qualquer pasta
+ncrawl                # sem args, em TTY: abre o menu guiado
+npm run unlink        # remove o link global quando quiser
+```
+- O comando é **`ncrawl`** (e o alias longo `newsletter-crawler`). Não é `nc` de propósito: `nc` já é o **netcat** no sistema — usar esse nome o sombrearia.
+- **`NC_HOME` (default `~/.newsletter-crawler/`)** é o lugar **previsível** onde ficam os **dados do usuário**: o banco SQLite (`crawler.db`), o `.env` (segredos), o `sources.json` (fontes que você adiciona) e os `export/`. Assim o binário linkado não depende de onde o repo está. Mude com `NC_HOME=/outro/caminho ncrawl ...`.
+- **Chave pelo CLI:** `ncrawl key set <chave>` faz um *probe* (`GET /api/v1/key`) e **só grava se a chave for válida** — salva `OPENROUTER_API_KEY` em `NC_HOME/.env`; `ncrawl key test` valida a chave atual. A chave da **DeepSeek direta** vai por env: `DEEPSEEK_API_KEY=...` no `.env` do repo ou no `NC_HOME/.env` (com `LLM_PROVIDER=deepseek`). **Resolução de env:** shell < `.env` do repo < `NC_HOME/.env` — o último a rodar vence (é o que o `ncrawl key set` aproveita).
+- O `sources.json` do usuário é **semeado** uma vez a partir do default versionado do repo (`config/sources.json`) — suas fontes de fábrica não se perdem. Dados já coletados em `./data/` **não** são migrados; se quiser reaproveitá-los, copie `data/crawler.db` para `~/.newsletter-crawler/crawler.db`.
+
+## Configuração
+- **`.env`** — segredos e overrides (veja `.env.example`). Nunca é commitado. No uso global, prefira `ncrawl key set <chave>` (grava em `~/.newsletter-crawler/.env`).
+- **`config/sources.json`** — as newsletters a raspar. O conjunto de fábrica são **6 newsletters
+  Cooperpress** (mesma página `/issues`): Node Weekly, JavaScript Weekly, Frontend Focus, React
+  Status, Postgres Weekly e Golang Weekly:
+  ```json
+  {
+    "sources": [
+      { "name": "Node Weekly", "url": "https://nodeweekly.com/issues", "type": "index" },
+      { "name": "JavaScript Weekly", "url": "https://javascriptweekly.com/issues", "type": "index" }
+    ]
+  }
+  ```
+  - `type` (default `listing`): em `listing` os links da página são artigos. Em **`index`** os links são **issues/edições** (roundups) — o crawler abre cada issue e, de dentro dela, abre os **links externos curados** (a notícia em si). Fluxo: `índice → issue (roundup) → artigo`.
+  - `maxIndexPages`: quantas páginas do índice paginar (default 1 = só a 1ª).
+  - Uma página apontada por um link que for, ela mesma, uma **coleção** de várias notícias (pouca prosa + muitos links externos) é **dividida em N** automaticamente (`MAX_CRAWL_DEPTH` limita a recursão).
+
+## Menu guiado (TUI)
+Ao chamar a ferramenta **sem argumentos num terminal interativo**, abre um **menu guiado** (Ink/React) com todas as ações (coletar, **buscar**, status, exportar, classificar, **resumir**, **finalizar pendentes**, adicionar fonte, limpar). Ele monta os parâmetros por opções, **mostra o comando equivalente** (assim você aprende as flags) e exibe, no crawl, um **dashboard ao vivo**: fases (Descoberta/Curadoria/Artigos/Pós) com barras + estado/cronômetro no topo, um **feed curado de eventos** embaixo e os avisos internos colapsados num contador (tecla `v` abre o log cru). Na tela **Coletar**, as fontes são escolhidas em **checkboxes** (espaço marca/desmarca, Enter confirma; todas vêm marcadas — um subconjunto vira `--sources "A,B"`). O visual é unificado por uma camada de **tokens semânticos** (`src/ui/theme.js`: cores por função, glifos, tema do @inkjs/ui) + widgets compartilhados (`Panel`, `FooterHints`, `Header`). **As flags continuam executando direto** — o menu é só um atalho.
+```bash
+npm start            # ou `node src/index.js` — abre o menu (em TTY)
+npm run ui           # idem, explícito
+CRAWLER_LANG=en npm run ui     # interface em inglês (default: português)
+NO_COLOR=1 npm run ui          # sem cores
+```
+> Mudança: `node src/index.js` sem args agora abre o **menu** (TTY) ou imprime **ajuda** (não-TTY/`--no-input`), em vez de rodar o crawl. Use `npm run crawl` para coletar. Ctrl-C sai limpo (restaura o terminal; jobs `in_progress` são retomados no próximo run).
+
+**Adicionar newsletter pela interface:** menu → **Adicionar fonte** → assistente (URL → nome → tipo `listing`/`index` → maxIndexPages). A fonte é **persistida em `config/sources.json`** (upsert por URL) — fica permanente, passa a aparecer no **checkbox de fontes** da tela **Coletar** e é re-semeada a cada crawl. Equivale a `npm run add -- <url> --name "..." --type index --max-index-pages 1`.
+
+## Uso
+```bash
+npm run crawl                          # semeia do config e roda até esvaziar a fila (resumível)
+npm run crawl -- --max-pages 2 --max-articles 5   # limita custo/tempo (ótimo p/ 1º teste)
+npm run crawl -- --sources "Node Weekly,React Status"   # várias fontes (é o que o checkbox da TUI emite)
+npm run crawl -- --source "Node Weekly"  # semeia só essa fonte (nome exato; ou --only <substr>)
+npm run crawl -- --source "Node Weekly" --since 2026-06-25   # piso de data (veja abaixo)
+npm run crawl -- --no-aggressive       # modo educado (agressivo é o default: robots ignorado + UA real)
+npm run crawl -- --no-refresh          # não re-visita as listagens; só drena a fila pendente
+npm run status                         # contagens de sources/pages/articles/selectors/frontier
+npm run inspect                        # auditoria da última run: itens por issue, vereditos, motivos, custo
+npm run inspect -- --url middy         # linha do tempo de eventos + registros de um link específico
+npm run purge -- "Node Weekly" --yes   # apaga os DADOS da fonte (fica cadastrada) p/ refazer do zero
+npm run add -- https://exemplo.com/arquivo --name "Minha" --type index --max-index-pages 1
+npm run export -- --format md          # data/export/<fonte>/*.md — só a última run (--all = tudo; ou --format json)
+npm run export -- --format web         # snapshot JSON do acervo p/ o buscador estático (webapp/public/data)
+npm run finish -- --budget 2           # termina os PENDENTES (verify+classify+summarize) sem novo crawl; teto US$2, retomável
+npm run search -- react server components --mode B   # por tags (5 chamadas, high); só a última run (--all = acervo)
+npm run search -- "local llm" --mode A --limit 20 --yes --all   # exaustiva no acervo todo (high)
+npm run web                            # buscador no navegador (localhost:8477): busca IA soft/profunda + browse
+npm run key -- set <chave>             # valida a chave OpenRouter e salva em ~/.newsletter-crawler/.env (ou: ncrawl key set)
+npm run reset -- --yes --confirm <n>   # APAGA TODOS OS DADOS (backup automático antes; <n> = o total de artigos mostrado)
+npm run restore                        # traz o acervo de volta do histórico do git (--dry-run mostra sem escrever)
+npm run backup                         # cópia do banco em ~/.newsletter-crawler/backups (backup list | backup restore <x> --yes)
+npm test                               # node:test (datas, anti-bot, busca em lote, API web, menu e preview da TUI)
+```
+
+### Resumos PT-BR e busca na base
+- **Resumos:** o estágio de resumo gera `title_pt` + `summary_pt` (resumo legível em **português do Brasil**) por artigo. O `content` original é mantido (busca/tags usam ele). Roda **dentro do crawl** (streaming + sweep pós-crawl) e no `npm run finish` — não há comando solto (desligue no crawl com `SUMMARIZE_AFTER_CRAWL=false` ou `--no-summarize`).
+- **Busca — Modo A (exaustivo):** `--mode A` faz **1 chamada do modelo por artigo** (concorrência 50, high), julgando `direto`/`parecido`; rankeia direto>parecido. Guard de custo: acima de `SEARCH_MODE_A_CONFIRM` (~200) artigos exige `--yes`. O prompt de relevância foi **calibrado por avaliação** (`eval/`, rubrica + few-shot): F1 macro 0.73 → **0.85**, cortando falsos positivos.
+- **Busca — Modo B (por tags):** `--mode B` faz **5 chamadas** (high; 1 por faceta de retrieval) → une as tags → traz artigos cujas tags cruzam. Rápido; **exige classificação feita**.
+- **Buscador web (`npm run web`):** a busca digitada é **100% IA** — Enter dispara a **soft** (1 chamada por lote de ~40 artigos, `medium`, lendo título+resumo) e o toggle **Busca profunda** avalia artigo a artigo (conteúdo), com **fontes (chips) + período** como escopo e um diálogo de confirmação com contagem + ~US$. Sem key configurada, um **modal** valida e salva a key OpenRouter em `~/.newsletter-crawler/.env` (vale na hora, sem reiniciar). O browse sem consulta continua instantâneo por filtros SQL (fonte/período/facetas/kind — incl. `release`); a busca por palavras foi **removida**.
+- Toda busca devolve dois grupos: **Notícias** e **Ferramentas** (artigo que é *sobre* uma ferramenta vai p/ Ferramentas). Na TUI (`npm run ui` → Buscar), os resultados são **navegáveis**: ↑/↓ selecionam, **Enter** abre a preview (conteúdo completo, rolável), **`o`** abre o link no navegador, Esc/b volta.
+- **Escopo padrão** do `search`: a última run **que trouxe artigos** (delta real); `--all` = acervo todo.
+- **Histórico de buscas:** toda busca IA concluída entra sozinha num histórico. **Reabrir** re-hidrata os resultados **congelados** do acervo (consulta, escopo, custo real, cards) **sem chamar a IA de novo**; **rodar de novo** re-executa com o mesmo escopo (passando pela confirmação de custo). No CLI/TUI e no buscador web local o histórico vive no **SQLite** (tabela `searches`; na TUI é o item de menu **Histórico de buscas** — Enter abre, `r` re-roda, `d` apaga, `x`×2 limpa); no **webapp estático** vive no **navegador** (localStorage, auto-save sem limite). Itens que saíram do acervo (por `purge`) são contados, nunca quebram a restauração.
+
+### Seleção de fonte e parada por data
+- **`--sources "<a,b>"`** semeia uma **lista** de fontes (vírgula; cada item por nome exato ou URL — é o que o checkbox da TUI emite; itens sem match geram aviso). Tem **precedência** sobre `--source`/`--only`.
+- **`--source "<nome|url>"`** semeia só uma fonte (nome exato ou URL); **`--only <substr>`** casa por substring.
+- **`--since <YYYY-MM-DD|ISO>`** é um **piso**: coleta do mais novo para o mais antigo e **para** ao passar da data. Aplica-se à data da **issue** (para a paginação do índice ao cruzar o piso) **e** à data de cada **artigo** (descarta os mais antigos; artigo sem data conhecida é mantido, pois sua issue já está no intervalo). Com `--since`, o índice pode paginar além de `maxIndexPages`, até `SINCE_MAX_INDEX_PAGES` (teto de segurança). Não é persistido — repita a flag ao retomar.
+- **Re-crawl incremental (padrão):** cada execução re-visita as listagens e enfileira **só URLs novas**; a paginação para na **1ª página sem itens novos** (arquivo é do mais novo p/ o mais antigo). `--no-refresh` desliga a re-visita (só drena a fila pendente). Cada crawl abre uma **execução (run)** com marca d'água (`runs` + `articles.run_id`) — `export` e `search` mostram por padrão **só o novo dessa última run** (`--all` = acervo inteiro).
+- **Dedup garantido:** o mesmo link nunca é cadastrado 2× — identidade pela **URL canônica pós-redirect** (`UNIQUE(url)`) + **`content_hash`** (índice UNIQUE). Links de paginação (instáveis) não servem de identidade; a checagem é pela notícia/conteúdo.
+
+### Retomar e terminar (parou no meio?)
+- **Retomar a fila:** re-rodar `npm run crawl` devolve os jobs `in_progress` à fila (`resetInProgress`), drena os pendentes e roda os sweeps ao fim. Artigos já salvos **não** são re-baixados (dedup).
+- **Terminar só o pós-processamento:** `npm run finish -- [--budget USD] [--parallel N] [--limit N] [--no-verify|--no-classify|--no-summarize]` roda verify+classify+summarize dos **pendentes**, sem novo crawl (também no menu da TUI → "Finalizar pendentes"). É **delta/idempotente** e o `--budget` **para no teto e devolve os pendentes** — dá p/ terminar um backlog grande em fatias, com custo controlado e retomável.
+
+### Recuperar o acervo (nunca recomece do zero)
+O acervo não mora só no SQLite local: ele é **versionado em `webapp/public/data`**, commitado a cada publicação. Então um clone novo do repositório **já tem os dados** — falta só colocá-los no banco.
+- **Automático (bootstrap):** banco vazio + snapshot no histórico do git ⇒ o **primeiro comando útil** (`crawl`, `finish`, `search`, `web`, `status`, o menu) restaura o acervo sozinho, avisando antes (a varredura leva alguns segundos). Desligue com `--no-restore` ou `CRAWLER_AUTO_RESTORE=false`. O `export` **não** dispara restauração de propósito: é o que o hook de `git push` roda, e um push não pode reescrever seu banco pelas costas.
+- **Manual:** `ncrawl restore [--dry-run] [--since AAAA-MM-DD] [--limit N] [--yes]` — reconstrói a partir dos snapshots commitados (união de todos, ficando com a versão mais rica de cada artigo). Sobre uma base com dados exige `--yes` e **tira backup antes**.
+- **Backups:** `ncrawl backup` cria uma cópia consistente (`VACUUM INTO`) em `~/.newsletter-crawler/backups`; `ncrawl backup list` mostra o que existe e `ncrawl backup restore latest --yes` repõe (o banco atual vira backup antes). **Toda operação destrutiva** (`reset`, `purge`, `remove`, reposição de backup) faz backup automático — se ele falhar com dado no banco, a operação é **abortada**. Ajuste com `BACKUP_DIR`, `BACKUP_KEEP` (10), `BACKUP_MIN_INTERVAL_MS`; `BACKUP_BEFORE_DESTRUCTIVE=false` desliga a rede de proteção.
+- **O `reset` mexe no repositório:** `npm run reset -- --yes --confirm <nº de artigos>` (o número é o total mostrado no impacto — errou, nada é apagado) apaga o banco **e** remove/commita `webapp/public/data` + `webapp/public/api/v1` junto de um marcador `.nc-wipe.json` — a **fronteira** que impede o restore de ressuscitar exatamente o que você mandou apagar (`ncrawl restore --no-marker` ignora a fronteira, para quem apagou sem querer).
+- **Primeira coleta depois de restaurar:** o snapshot commitado hoje ainda não traz a URL da *issue* de cada item (o exportador passou a incluí-la; os valores históricos se perderam com o banco antigo), então o crawler pode re-percorrer edições antigas. Use `--since <data recente>` (e/ou `--max-pages 1`) nessa primeira coleta; do segundo deploy em diante o campo já viaja no snapshot.
+
+## Publicar o site (buscador estático)
+O acervo pode virar um **buscador estático** (`webapp/`, Vite+React, **sem backend** — a busca IA roda no navegador com a chave do próprio usuário, BYOK: **OpenRouter ou DeepSeek direto**, escolhida no modal de chave) publicado na **Vercel**. O site lê os JSONs commitados em `webapp/public/data` (`meta.json` + `articles.json` + `contents.partN.json` — o mapa id→texto é fatiado em partes < 100 MB, com o índice em `meta.contentsParts`), gerados por `ncrawl export --format web` (determinístico: dois exports sem dado novo geram bytes idênticos, exceto o `generatedAt`).
+
+- **Fluxo normal = só `git push` na main.** Com o projeto Vercel conectado ao repo (Root Directory `webapp/`), todo push publica. O hook versionado **`.githooks/pre-push`** (instalado por `npm install` via `postinstall` → `core.hooksPath`) re-exporta o snapshot do seu **SQLite local** e, se houver dado novo, **commita `webapp/public/data` e interrompe o push** — é só repetir o `git push` (um commit criado durante o push não entra nele) e a Vercel faz o deploy.
+- **Guards fail-open** (o hook nunca trava trabalho legítimo): o export não rodou (máquina sem node/banco) → o push segue; mudança só no `generatedAt` volátil → sem ruído. **Guard anti-encolhimento:** um snapshot com **menos** artigos que o já publicado (máquina sem o banco exportaria um acervo vazio) é **bloqueado dentro do próprio export**, antes de escrever qualquer byte — o hook diz que foi o guard (não o ambiente) e o push segue sem commitar. Redução intencional (depois de `remove`/`purge`): `ncrawl export --format web --allow-shrink` — e `--allow-shrink wipe` (com **espaço**, nunca `=`) para zerar; no `git push`, `NC_ALLOW_SHRINK=1` / `NC_ALLOW_SHRINK=wipe`.
+- **Manualmente:** `ncrawl export --format web && git add webapp/public/data && git commit && git push`.
+- ⚠️ Enquanto uma coleta/enriquecimento estiver **escrevendo no banco em outro terminal**, cada push encontra dado novo e re-exporta/aborta em loop; use `git push --no-verify` para publicar o snapshot já commitado.
+
+## Modelos e provedor LLM (OpenRouter | DeepSeek direto)
+- **Dois provedores** (`LLM_PROVIDER=openrouter|deepseek`, default `openrouter` — sem auto-detecção: inválido/ausente cai em openrouter). O provider ativo decide transporte, chave e fonte do custo:
+  - **OpenRouter** (default): baseURL `https://openrouter.ai/api/v1`, chave `OPENROUTER_API_KEY`, custo real na resposta (`usage.cost`, via `usage:{include:true}`).
+  - **DeepSeek direto** (api.deepseek.com): baseURL `DEEPSEEK_BASE_URL` (default `https://api.deepseek.com`), chave `DEEPSEEK_API_KEY`. Os slugs do `config/models.json` (formato OpenRouter) são traduzidos p/ o id da API direta (`deepseek/deepseek-v4-flash-0731` → `deepseek-v4-flash`; overrides `DEEPSEEK_MODEL_MAP`/`DEEPSEEK_DEFAULT_MODEL`). A API não aceita os params da OpenRouter (`reasoning`, `usage:{include:true}` — são omitidos) nem `response_format` json_schema (degrada p/ `json_object`); o effort efetivo é `low|high|max` (xhigh/medium → high; `max` só existe no enum do direto, nunca é enviado — no OpenRouter o DeepSeek V4 rejeita `max` com 400). **Custo calculado localmente** (a API não traz `usage.cost`): tokens × tabela do `src/config.js` (`DEEPSEEK_PRICES` ou env `DEEPSEEK_PRICE_<MODEL>_INPUT_PER_M`/`_OUTPUT_PER_M`) — preços atuais em `docs/deepseek-direct.md`.
+- **Modelo único** `deepseek/deepseek-v4-flash-0731` — derivação de seletor e os fallbacks de extração/paginação (item-a-item, próxima página, extração de artigo) usam `reasoning.effort: "xhigh"` (1 chamada amortizada por template; use `"xhigh"`, **nunca** `"max"`); resumo PT-BR, busca, curadoria e verificação usam `"high"`; etapas mecânicas (limpeza pré-save, lote da busca soft) usam `"medium"`.
+- **Classificação (custo):** as 9 facetas de tag rodam **por faceta**; só as **core** (`domain`, `topic-technology`) em `effort: "high"`, as outras 7 em `effort: "medium"` sobre título+início do corpo (`CLASSIFY_MAX_CHARS`=2000; ajuste por faceta com `LLM_MODEL_CLASSIFY_<FACETA>`/`LLM_EFFORT_CLASSIFY_<FACETA>`). Classificar já foi ~92% do gasto de uma coleta longa; este perfil corta ~4× (o próximo salto seria classificar em **lote** de artigos por chamada).
+- Saídas estruturadas via `response_format: json_schema` (strict) + validação `zod` (no provedor direto: `json_object` — o zod e o parse defensivo seguem como guarda).
+- **JSON inválido é retomável:** o modelo às vezes trunca a resposta; `callJSON` re-amostra **2×** e, se ainda falhar, faz **uma última tentativa**. O `maxRetries` do SDK cobre 429/5xx à parte.
+- **TTS (leitura em voz alta):** segue **OpenRouter-only** (`/api/v1/audio/speech`) — a DeepSeek não tem API de áudio; no webapp, o botão de reprodução só funciona com chave da OpenRouter salva.
+
+## Estrutura
+```
+src/config.js     env + sources + constantes
+src/util.js       normalizeUrl, sha256, jitter, slugify, log
+src/db.js         better-sqlite3: schema (WAL) + prepared statements
+src/fetch.js      fetchStatic/fetchRendered/fetchSmart + robots + circuit breaker
+src/clean.js      pruneForLLM (HtmlRAG) + Readability + turndown
+src/llm.js        LLM (OpenRouter | DeepSeek direto): deriveLinkSelector/Content/Next + extractLinks/Article
+src/selectors.js  cache get/put + validação Cheerio (self-healing)
+src/substack.js   atalho opcional via API JSON do Substack
+src/crawl.js      frontier + processJob + crawlArchive + paginação
+src/classify.js   classificação multi-faceta de tags (vocabulário controlado)
+src/taxonomy.js   vocabulário/facetas + prompts (classificação e busca por tags)
+src/summarize.js  resumo + título PT-BR por artigo (high)
+src/search.js     busca na base: modo A (high, varre o escopo) + modo B (high, por tags) + searchWeb (web: soft em lote / profunda)
+src/web.js        buscador web: servidor node:http zero-dep (API JSON + busca IA + key) — `npm run web`
+src/web-ui/       app React zero-build do buscador (htm + UMD servidos de node_modules)
+src/keys.js       chave (OpenRouter): probe (GET /api/v1/key) + upsert idempotente em NC_HOME/.env (a chave da DeepSeek direta vai por env)
+src/commands.js   implementação dos comandos (compartilhada CLI + UI) + getStatus
+src/index.js      CLI (parseFlags + dispatch) + gate do menu guiado
+src/ui/           menu Ink/React (htm, sem build): App, screens, RunView (painel ao vivo), HistoryView, i18n
+webapp/           buscador ESTÁTICO (Vite+React, deploy Vercel): lê o snapshot JSON, busca IA no navegador
+eval/             harness de avaliação do prompt de busca (golden set, variantes) → REPORT.md
+```
+
+## Notas
+- **Cortesia/legal:** respeita `robots.txt` e Crawl-delay (desative com `CRAWLER_RESPECT_ROBOTS=false`, ou por execução com `--aggressive` — que também usa UA de navegador real —, só para conteúdo que você tem direito de arquivar), usa UA identificável, delay com jitter e circuit breaker por host. Raspe apenas conteúdo público.
+- **Sem `axios`** (incidente de supply-chain de 31/03/2026); usamos `got`. As versões são fixadas no `package-lock.json`.
+- **Custo:** `xhigh` é cobrado como tokens de saída — por isso o modelo só usa xhigh na derivação de seletor (uma vez por template) e o DOM é podado antes de ir ao LLM.

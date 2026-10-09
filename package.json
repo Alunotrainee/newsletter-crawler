@@ -1,0 +1,64 @@
+{
+  "name": "newsletter-crawler",
+  "version": "3.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Crawler de newsletters em Node.js puro com seletores CSS gerados por LLM (OpenRouter / DeepSeek V4) e cache self-healing em SQLite.",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "ncrawl": "src/index.js",
+    "newsletter-crawler": "src/index.js"
+  },
+  "scripts": {
+    "crawl": "node --env-file-if-exists=.env src/index.js crawl",
+    "status": "node --env-file-if-exists=.env src/index.js status",
+    "inspect": "node --env-file-if-exists=.env src/index.js inspect",
+    "audit": "node --env-file-if-exists=.env src/index.js audit",
+    "purge": "node --env-file-if-exists=.env src/index.js purge",
+    "add": "node --env-file-if-exists=.env src/index.js add",
+    "remove": "node --env-file-if-exists=.env src/index.js remove",
+    "export": "node --env-file-if-exists=.env src/index.js export",
+    "finish": "node --env-file-if-exists=.env src/index.js finish",
+    "search": "node --env-file-if-exists=.env src/index.js search",
+    "web": "node --env-file-if-exists=.env src/index.js web",
+    "key": "node src/index.js key",
+    "limits": "node --env-file-if-exists=.env src/index.js limits",
+    "reset": "node --env-file-if-exists=.env src/index.js reset",
+    "restore": "node --env-file-if-exists=.env src/index.js restore",
+    "backup": "node --env-file-if-exists=.env src/index.js backup",
+    "deploy": "node --env-file-if-exists=.env src/index.js deploy",
+    "test": "node --test",
+    "ui": "NODE_NO_WARNINGS=1 node --env-file-if-exists=.env src/index.js ui",
+    "menu": "NODE_NO_WARNINGS=1 node --env-file-if-exists=.env src/index.js menu",
+    "start": "node --env-file-if-exists=.env src/index.js",
+    "postinstall": "git config core.hooksPath .githooks 2>/dev/null || true",
+    "link": "npm install && npx playwright install chromium && npm link && node src/index.js status",
+    "unlink": "npm rm -g newsletter-crawler"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
+    "@inkjs/ui": "^2.0.0",
+    "@mozilla/readability": "^0.6.0",
+    "better-sqlite3": "^12.11.1",
+    "cheerio": "^1.2.0",
+    "got": "^15.0.7",
+    "htm": "^3.1.1",
+    "ink": "^5.2.1",
+    "jsdom": "^29.1.1",
+    "normalize-url": "^9.0.1",
+    "openai": "^6.45.0",
+    "p-limit": "^7.3.0",
+    "playwright": "^1.61.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "robots-parser": "^3.0.1",
+    "sqlite-vec": "^0.1.9",
+    "turndown": "^7.2.4",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "ink-testing-library": "^4.0.0"
+  }
+}

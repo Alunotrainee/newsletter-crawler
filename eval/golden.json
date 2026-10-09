@@ -1,0 +1,37 @@
+{
+  "_note": "Gabarito RE-CURADO por Claude Fable 5 (juiz independente do DeepSeek sob teste) contra o DB ATUAL (2370 artigos, corpus JS/web-dev da Cooperpress: Node/Frontend/React/JS Weekly + Postgres Weekly). O golden anterior (temas de IA/LLM) ficou obsoleto: o DB foi reconstruído e os ids auto-increment reatribuídos — os ids do pool antigo passaram a apontar p/ outros artigos. relevant = direct∪similar; qualquer id do pool fora de direct/similar é 'none'. kindTool = ids que são SOBRE uma ferramenta/lib/framework/CLI/produto (resto = news, ensaio, case, entrevista). Cross-overs propositais (Bun runtime vs gerenciador; Postgres+agentes de IA) exercitam a distinção ESTRITO(direct) vs AMPLO(direct∪similar).",
+  "pool": [2249,2138,2078,2162,2369,2012,2008,2007,1985,1983,2002,2003,2324,2323,2264,2270,1897,2327,2307,2290,2279,2232,2059,2057,2356,2218,2340,2329,2219,2163,2148,2098,2341,1905,1784,2013,1982,1998,2217,2107,2143,2016],
+  "kindTool": [2249,2138,2078,2012,2008,2007,1985,1983,2013,2270,1897,2324,2323,2143,2327,2307,2290,2279,2232,2059,2057,2217,2107,2356,2218,2329,2219],
+  "scenarios": [
+    {
+      "id": "S1",
+      "query": "gerenciadores de pacotes do JavaScript (npm, pnpm, yarn, bun) e melhorias na instalação e na segurança de dependências",
+      "direct": [2249,2138,2078,2162,2369],
+      "similar": [2148,2098,2341]
+    },
+    {
+      "id": "S2",
+      "query": "novidades, extensões e otimização de performance no PostgreSQL",
+      "direct": [2012,2008,2007,1985,1983,2002,2003],
+      "similar": [2013,1982,1905,1784]
+    },
+    {
+      "id": "S3",
+      "query": "agentes de IA e ferramentas de LLM para desenvolvimento de software (assistentes e agentes de codificação)",
+      "direct": [2324,2323,2264,2270,1897,1905],
+      "similar": [1998,2016,1784,2143]
+    },
+    {
+      "id": "S4",
+      "query": "novidades e bibliotecas do React e do seu ecossistema (Next.js, React Native)",
+      "direct": [2327,2307,2290,2279,2232,2059,2057,2107],
+      "similar": [2217]
+    },
+    {
+      "id": "S5",
+      "query": "runtimes de JavaScript (Node.js, Deno, Bun): novas versões, performance e recursos internos",
+      "direct": [2356,2218,2340,2329,2219,2163,2148,2098],
+      "similar": [2341]
+    }
+  ]
+}

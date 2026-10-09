@@ -1,0 +1,1553 @@
+// Buscador — app React zero-build: React/ReactDOM chegam como globals (UMD em /vendor) e o
+// htm (tagged templates) faz o papel do JSX, exatamente como na TUI Ink. Strings em PT-BR.
+import htm from '/vendor/htm.js';
+
+const { useState, useEffect, useRef, useCallback, Fragment } = React;
+const html = htm.bind(React.createElement);
+// htm NÃO entende o fragment "nu" <>…</> do JSX (viraria tag '' e o React aborta);
+// fragments aqui são sempre <${Fragment}>…<//>.
+
+const PAGE = 24;
+
+const STR = {
+  brand: 'newsletter-crawler',
+  brandSep: ' · buscador',
+  heroTitle: 'Todos os seus artigos.',
+  heroSub: 'Pergunte à IA — ela lê o acervo e separa o que responde de verdade.',
+  searchPlaceholder: 'Busque com IA: tema, pergunta, tecnologia…',
+  clear: 'Limpar busca',
+  segAll: 'Tudo',
+  segNews: 'Notícias',
+  segTools: 'Ferramentas',
+  allSources: 'Todas as fontes',
+  from: 'De',
+  to: 'Até',
+  last7: '7 dias',
+  last30: '30 dias',
+  filters: 'Filtros',
+  clearFilters: 'Limpar filtros',
+  results: (n) => `${n} ${n === 1 ? 'artigo' : 'artigos'}`,
+  loadMore: 'Carregar mais',
+  loading: 'Carregando…',
+  emptyTitle: 'Nenhum artigo encontrado',
+  emptyBody: 'Tente outra busca ou remova alguns filtros.',
+  emptyDbTitle: 'Sua base ainda está vazia',
+  emptyDbBody: 'Rode um crawl para arquivar os primeiros artigos:',
+  errorTitle: 'Algo deu errado',
+  retry: 'Tentar de novo',
+  openOriginal: 'Ler o artigo original',
+  close: 'Fechar',
+  toolBadge: 'Ferramenta',
+  releaseBadge: 'Release',
+  costTitle: 'Custo de IA acumulado (todas as coletas)',
+  verifyAll: 'Verificação: todas',
+  verifyOk: 'ok',
+  verifySuspect: 'suspect',
+  verifyJunk: 'junk',
+  verifyTitle: (v, notes) => `Verificação: ${v}${notes ? ` — ${notes}` : ''}`,
+  theme: 'Alternar tema claro/escuro',
+  showMore: (n) => `+ ${n} mais`,
+  showLess: 'mostrar menos',
+  noDate: 'sem data',
+  // player de áudio (TTS)
+  playAll: 'Ouvir resultados',
+  stopPlayback: 'Parar áudio',
+  playSummary: 'Ouvir resumo',
+  // busca IA (soft em lote / profunda por artigo)
+  searchBtn: 'Buscar',
+  searchHint: 'Enter busca com IA · fonte e período limitam o escopo',
+  searchDeep: 'Busca profunda',
+  searchDeepHint: 'Lê o conteúdo completo de cada artigo do escopo (1 chamada de IA por artigo — mais cara e lenta).',
+  searchSlowHint: 'Analisando com IA — a busca profunda pode levar alguns minutos…',
+  searchSoftHint: 'Analisando com IA…',
+  aiResultsFor: (q) => `Resultados da IA para “${q}”`,
+  aiStats: (rel, total) => `${rel} relevante(s) de ${total} analisados`,
+  aiTruncated: (n) => `mostrando os ${n} primeiros`,
+  aiSkipped: (n) => `${n} não avaliados (orçamento)`,
+  aiClear: 'Limpar resultados',
+  // loader ao vivo (streaming): progresso nível-artigo
+  aiUnitArticles: 'artigos',
+  aiRelevants: (n) => `relevante${n === 1 ? '' : 's'}`,
+  aiEta: (label) => `~${label} restantes`,
+  aiFailed: (n) => `${n} não analisado${n === 1 ? '' : 's'}`,
+  relationDirect: 'Direta',
+  relationSimilar: 'Similar',
+  strictToggle: 'Estrito',
+  strictHint: 'Mostra só o que é resposta central; desligue para incluir os adjacentes (similares).',
+  concLabel: 'Paralelismo',
+  concHint: 'Buscas simultâneas contra a IA. Mais = mais rápido; o servidor reduz sozinho se a API limitar (429).',
+  specLabel: 'Entendi sua busca como',
+  specNiceLabel: 'desejável',
+  specHiddenHint: (n) => `+${n} adjacente${n === 1 ? '' : 's'} oculto${n === 1 ? '' : 's'} · desligue “Estrito”`,
+  segReleases: 'Releases',
+  confirmTitle: 'Confirmar busca com IA',
+  confirmBody: (n, usd) => `O escopo atual tem ${n} artigo(s) — custo estimado ~US$ ${usd}. Rodar a busca?`,
+  confirmRun: 'Rodar busca',
+  cancel: 'Cancelar',
+  busyMsg: 'Já existe uma busca em andamento — aguarde ela terminar.',
+  scopeEmpty: 'O escopo atual (fonte/período) não tem nenhum artigo.',
+  noResults: (q) => `A IA não achou nada relevante para “${q}”.`,
+  searchFailed: 'A busca falhou — veja o terminal do servidor e tente de novo.',
+  sourcesScope: 'Fontes no escopo',
+  allSelected: 'todas',
+  // Strings do modal de chave provider-aware: (p) recebe o nome do provedor ('OpenRouter'|'DeepSeek').
+  keyProviderLabel: 'Provedor LLM:',
+  keyProviderOpenRouter: 'OpenRouter',
+  keyProviderDeepSeek: 'DeepSeek (API direta)',
+  keyTitle: (p) => `Configurar a chave LLM (${p})`,
+  keyBody: (p) => `A busca por IA usa ${p}. Cole sua chave: ela é validada na API e salva em ~/.newsletter-crawler/.env — vale também para o CLI.`,
+  keyPlaceholder: (p) => (p === 'DeepSeek' ? 'sk-…' : 'sk-or-v1-…'),
+  keySave: 'Validar e salvar',
+  keyChecking: 'Validando…',
+  keyInvalid: (p) => `Chave inválida (a API do ${p} recusou). Confira e tente de novo.`,
+  keyNetwork: 'Não deu para validar (sem rede?). Tente de novo.',
+  keyTest: 'Testar',
+  keyTestOk: 'chave válida ✓',
+  keyActivate: 'Usar esta chave',
+  keyActive: 'ativa',
+  keyNoKey: 'sem chave',
+  keySaved: 'chave salva ✓',
+  // histórico de buscas (persistido no SQLite; toda busca concluída entra sozinha)
+  historyTitle: 'Histórico de buscas',
+  historyEmpty: 'Nenhuma busca salva ainda — toda busca concluída com IA aparece aqui.',
+  historyOpen: 'Abrir o resultado salvo (sem custo)',
+  historyRerun: 'Rodar de novo',
+  historyDelete: 'Apagar',
+  historyClear: 'Limpar histórico',
+  historyClearConfirm: 'Apagar tudo? (clique de novo)',
+  historyRestored: (when) => `salva em ${when}`,
+  historyMissing: (n) => `${n} item(ns) saíram do acervo`,
+  historyModeLabel: { soft: 'soft', deep: 'profunda', A: 'CLI modo A', B: 'CLI modo B' },
+  recentLabel: 'Buscas recentes',
+};
+
+const FACET_LABEL = {
+  domain: 'Domínio',
+  'content-type': 'Tipo de conteúdo',
+  'topic-technology': 'Tópicos e tecnologias',
+  difficulty: 'Nível',
+  'ecosystem-language': 'Linguagens',
+  'company-vendor-model': 'Empresas e modelos',
+  'framework-library-tool': 'Frameworks, libs e ferramentas',
+  'concept-theme': 'Conceitos e temas',
+  'trending-emerging': 'Tendências',
+};
+
+async function fetchJSON(url, signal) {
+  const r = await fetch(url, { signal });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error(body.error || `HTTP ${r.status}`);
+  }
+  return r.json();
+}
+
+// POST JSON sem timeout do lado do cliente (a busca profunda responde em minutos). Erros HTTP
+// viram Error com {status, code, data} p/ o chamador rotear (409 ocupado, 428 confirmação, NO_KEY).
+async function postJSON(url, body) {
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const err = new Error(data.error || `HTTP ${r.status}`);
+    err.status = r.status;
+    err.code = data.code;
+    err.data = data;
+    throw err;
+  }
+  return data;
+}
+
+// Consome a busca SSE (GET /api/search/stream) via fetch: dá p/ ler status de erro (428/409/NO_KEY)
+// E é abortável (Cancelar) — ao contrário do EventSource. Chama onHit/onProgress AO VIVO e resolve
+// com o payload do evento `done`. Parse manual dos frames "event:/data:" separados por linha vazia.
+async function streamSearch({ query, deep, sources, from, to, concurrency, signal, onHit, onProgress, onSpec }) {
+  const sp = new URLSearchParams();
+  sp.set('q', query);
+  if (deep) sp.set('deep', '1');
+  if (sources && sources.length) sp.set('sources', JSON.stringify(sources));
+  if (from) sp.set('from', from);
+  if (to) sp.set('to', to);
+  if (concurrency) sp.set('concurrency', String(concurrency));
+  sp.set('confirm', '1'); // o preflight/diálogo já confirmou antes de abrir o stream
+  const r = await fetch(`/api/search/stream?${sp}`, { signal });
+  if (!r.ok || !r.body) {
+    const data = await r.json().catch(() => ({}));
+    const err = new Error(data.error || `HTTP ${r.status}`);
+    err.status = r.status;
+    err.code = data.code;
+    err.data = data;
+    throw err;
+  }
+  const reader = r.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  let done = null;
+  for (;;) {
+    const { value, done: rdDone } = await reader.read();
+    if (rdDone) break;
+    buf += decoder.decode(value, { stream: true });
+    const frames = buf.split('\n\n');
+    buf = frames.pop(); // último frame (talvez incompleto) volta pro buffer
+    for (const frame of frames) {
+      if (!frame.trim() || frame.startsWith(':')) continue; // comentário SSE (abertura/keep-alive)
+      let event = 'message';
+      let data = '';
+      for (const line of frame.split('\n')) {
+        if (line.startsWith('event:')) event = line.slice(6).trim();
+        else if (line.startsWith('data:')) data += line.slice(5).trim();
+      }
+      if (!data) continue;
+      let payload;
+      try {
+        payload = JSON.parse(data);
+      } catch {
+        continue;
+      }
+      if (event === 'hit') onHit?.(payload);
+      else if (event === 'progress') onProgress?.(payload);
+      else if (event === 'spec') onSpec?.(payload);
+      else if (event === 'done') done = payload;
+      else if (event === 'error') throw new Error(payload.error || 'a busca falhou');
+    }
+  }
+  if (!done) throw new Error('a busca terminou sem resultado');
+  return done;
+}
+
+/** US$ com 2–4 casas (custos de IA são fracionários) — espelho do fmtUsd do webapp. */
+const fmtUsd = (v) => {
+  const n = Number(v) || 0;
+  const digits = n > 0 && n < 0.01 ? 4 : 2;
+  return `US$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: digits })}`;
+};
+
+/** ETA legível a partir de segundos: "45s", "2min", "2min 30s". */
+const fmtEtaSecs = (secs) => {
+  const s = Math.max(0, Math.round(Number(secs) || 0));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  return rem ? `${m}min ${rem}s` : `${m}min`;
+};
+
+const fmtDate = (iso) => {
+  if (!iso) return STR.noDate;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return STR.noDate;
+  // date-only (YYYY-MM-DD) parseia como meia-noite UTC; formatar no fuso local deslocaria 1 dia
+  const opts = { day: 'numeric', month: 'short', year: 'numeric' };
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(iso).trim())) opts.timeZone = 'UTC';
+  return d.toLocaleDateString('pt-BR', opts);
+};
+// created_at do histórico vem do SQLite em UTC 'YYYY-MM-DD HH:MM:SS' (sem T/Z — o Safari nem
+// parseia): normaliza p/ ISO UTC e exibe no fuso local.
+const fmtDateTime = (sq) => {
+  if (!sq) return '';
+  const s = String(sq);
+  const d = new Date(s.includes('T') ? s : `${s.replace(' ', 'T')}Z`);
+  if (Number.isNaN(d.getTime())) return s;
+  return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+};
+// published_at vem cru do scrape (pode ser imparseável); cai no extracted_at.
+const bestDate = (a) => {
+  const pub = a.published_at && !Number.isNaN(new Date(a.published_at).getTime());
+  return fmtDate(pub ? a.published_at : a.extracted_at);
+};
+const dateOnly = (d) => d.toISOString().slice(0, 10);
+const daysAgo = (n) => dateOnly(new Date(Date.now() - n * 86400000));
+
+// ---- ícones (SVG inline, traço fino estilo SF Symbols) ----
+const Icon = {
+  search: () => html`<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <circle cx="7" cy="7" r="5.2" stroke="currentColor" stroke-width="1.5" />
+    <path d="M11 11l3.4 3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+  </svg>`,
+  sun: () => html`<svg width="17" height="17" viewBox="0 0 17 17" fill="none" aria-hidden="true">
+    <circle cx="8.5" cy="8.5" r="3.4" stroke="currentColor" stroke-width="1.5" />
+    <path d="M8.5 1v2M8.5 14v2M1 8.5h2M14 8.5h2M3.2 3.2l1.4 1.4M12.4 12.4l1.4 1.4M13.8 3.2l-1.4 1.4M4.6 12.4l-1.4 1.4"
+      stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+  </svg>`,
+  moon: () => html`<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <path d="M13.8 9.6A6 6 0 116.4 2.2a4.8 4.8 0 007.4 7.4z" stroke="currentColor" stroke-width="1.5"
+      stroke-linejoin="round" />
+  </svg>`,
+  empty: () => html`<svg width="44" height="44" viewBox="0 0 44 44" fill="none" aria-hidden="true">
+    <circle cx="19" cy="19" r="12.5" stroke="currentColor" stroke-width="2" />
+    <path d="M28.5 28.5l8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+    <path d="M14 19h10" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+  </svg>`,
+  history: () => html`<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <path d="M2.6 8a5.4 5.4 0 105.4-5.4c-1.9 0-3.6 1-4.5 2.5" stroke="currentColor" stroke-width="1.5"
+      stroke-linecap="round" />
+    <path d="M3.2 1.8v3.4h3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M8 5.4V8l2 1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+  </svg>`,
+  play: () => html`<svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+    <path d="M5 3.4v9.2a.6.6 0 0 0 .92.5l7.2-4.6a.6.6 0 0 0 0-1L5.92 2.9A.6.6 0 0 0 5 3.4Z" />
+  </svg>`,
+  stop: () => html`<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+    <rect x="3.5" y="3.5" width="9" height="9" rx="1.8" />
+  </svg>`,
+  spinner: () => html`<svg className="play-spinner" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <path d="M8 2a6 6 0 1 0 6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+  </svg>`,
+};
+
+// ---- player de áudio (TTS) ----
+// UM <audio>, UMA reprodução por vez. Toca direto da rota /api/tts?id= (o backend gera o áudio e
+// cuida da chave); no 'ended' avança na fila 'all', no 'error' pula o item. A App gasta gate por
+// hasKey antes de tocar (abre o modal de chave), como na busca.
+function useAudioPlayer() {
+  const audioRef = useRef(null);
+  const queueRef = useRef([]);
+  const idxRef = useRef(-1);
+  const modeRef = useRef(null); // 'all' | 'one' | null
+  const advanceRef = useRef(() => {});
+  const [playing, setPlaying] = useState(false);
+  const [currentId, setCurrentId] = useState(null);
+  const [loadingId, setLoadingId] = useState(null);
+
+  if (!audioRef.current && typeof Audio !== 'undefined') audioRef.current = new Audio();
+
+  const stop = useCallback(() => {
+    modeRef.current = null;
+    idxRef.current = -1;
+    const el = audioRef.current;
+    if (el) {
+      el.pause();
+      el.removeAttribute('src');
+      el.load();
+    }
+    setPlaying(false);
+    setCurrentId(null);
+    setLoadingId(null);
+  }, []);
+
+  const playId = useCallback((id) => {
+    const el = audioRef.current;
+    if (!el) return;
+    setCurrentId(id);
+    setLoadingId(id);
+    setPlaying(true);
+    el.src = `/api/tts?id=${id}`;
+    el.play().catch(() => {}); // erro real cai no listener 'error' → advance
+  }, []);
+
+  const advance = useCallback(() => {
+    if (modeRef.current !== 'all') {
+      stop();
+      return;
+    }
+    const q = queueRef.current;
+    let next = idxRef.current + 1;
+    while (next < q.length && !(q[next].summary_pt || q[next].snippet)) next += 1;
+    if (next >= q.length) {
+      stop();
+      return;
+    }
+    idxRef.current = next;
+    playId(q[next].id);
+  }, [playId, stop]);
+  advanceRef.current = advance;
+
+  const playAll = useCallback(
+    (items) => {
+      queueRef.current = items || [];
+      const first = queueRef.current.findIndex((x) => x.summary_pt || x.snippet);
+      if (first === -1) return;
+      modeRef.current = 'all';
+      idxRef.current = first;
+      playId(queueRef.current[first].id);
+    },
+    [playId],
+  );
+
+  const playOne = useCallback(
+    (id) => {
+      modeRef.current = 'one';
+      idxRef.current = -1;
+      playId(id);
+    },
+    [playId],
+  );
+
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    const onEnded = () => advanceRef.current();
+    const onErr = () => advanceRef.current();
+    const onPlaying = () => setLoadingId(null);
+    el.addEventListener('ended', onEnded);
+    el.addEventListener('error', onErr);
+    el.addEventListener('playing', onPlaying);
+    return () => {
+      el.pause();
+      el.removeEventListener('ended', onEnded);
+      el.removeEventListener('error', onErr);
+      el.removeEventListener('playing', onPlaying);
+    };
+  }, []);
+
+  return { playing, currentId, loadingId, playAll, playOne, stop };
+}
+
+// ---- tema ----
+function currentTheme() {
+  const explicit = document.documentElement.dataset.theme;
+  if (explicit === 'dark' || explicit === 'light') return explicit;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function ThemeToggle() {
+  const [theme, setTheme] = useState(currentTheme);
+  const flip = () => {
+    const next = currentTheme() === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    try {
+      localStorage.setItem('nc-theme', next);
+    } catch { /* storage indisponível */ }
+    setTheme(next);
+  };
+  return html`<button className="icon-btn" onClick=${flip} title=${STR.theme} aria-label=${STR.theme}>
+    ${theme === 'dark' ? html`<${Icon.sun} />` : html`<${Icon.moon} />`}
+  </button>`;
+}
+
+// ---- controles ----
+function Segmented({ value, onChange, withRelease = false }) {
+  const opts = [
+    ['all', STR.segAll],
+    ['news', STR.segNews],
+    ['tool', STR.segTools],
+  ];
+  if (withRelease) opts.push(['release', STR.segReleases]); // só no browse (a IA julga news|tool)
+  return html`<div className="segmented" role="group">
+    ${opts.map(
+      ([v, label]) => html`<button key=${v} aria-pressed=${value === v} onClick=${() => onChange(v)}>
+        ${label}
+      </button>`,
+    )}
+  </div>`;
+}
+
+function FacetGroup({ facet, selected, onToggle }) {
+  const [expanded, setExpanded] = useState(false);
+  const CAP = 14;
+  const tags = expanded ? facet.tags : facet.tags.slice(0, CAP);
+  const hidden = facet.tags.length - CAP;
+  return html`<div className="facet-group">
+    <span className="facet-label">${FACET_LABEL[facet.name] || facet.name}</span>
+    <div className="chip-row">
+      ${tags.map(
+        ({ tag, count }) => html`<button
+          key=${tag}
+          className="chip"
+          aria-pressed=${selected.includes(tag)}
+          onClick=${() => onToggle(facet.name, tag)}
+        >
+          ${tag} <span className="count">${count}</span>
+        </button>`,
+      )}
+      ${hidden > 0 &&
+      html`<button className="chip chip-more" onClick=${() => setExpanded(!expanded)}>
+        ${expanded ? STR.showLess : STR.showMore(hidden)}
+      </button>`}
+    </div>
+  </div>`;
+}
+
+// Selo de tipo (ferramenta/release) e de verificação (ok/suspect/junk): release deixou de colapsar
+// em news/tool, e o veredito da verificação agora aparece na UI (antes só no inspect/SQL).
+function kindBadge(kind) {
+  if (kind === 'tool') return html`<span className="tag tool">${STR.toolBadge}</span>`;
+  if (kind === 'release') return html`<span className="tag release">${STR.releaseBadge}</span>`;
+  return null;
+}
+const VERIFY_LABEL = { ok: STR.verifyOk, suspect: STR.verifySuspect, junk: STR.verifyJunk };
+function verifyBadge(a) {
+  const v = a.verify_status;
+  if (!v) return null;
+  return html`<span
+    className=${`tag verify verify-${v}`}
+    title=${STR.verifyTitle(v, a.verify_notes)}
+  >${VERIFY_LABEL[v] || v}</span>`;
+}
+
+function ArticleCard({ a, onOpen, player }) {
+  const title = a.title_pt || a.title || a.url;
+  const summary = a.summary_pt || a.snippet || '';
+  const chipTags = [...(a.tags['domain'] || []), ...(a.tags['framework-library-tool'] || [])].slice(0, 2);
+  const isCurrent = player && player.currentId === a.id;
+  const active = isCurrent && player.playing;
+  const loading = player && player.loadingId === a.id;
+  return html`<div className=${`card-wrap${isCurrent ? ' is-playing' : ''}`}>
+    <button className="card" onClick=${() => onOpen(a.id)}>
+      <span className="eyebrow">
+        ${a.source_name || '—'} <span className="dot">·</span> ${bestDate(a)}
+      </span>
+      <h3>${title}</h3>
+      ${summary && html`<p className="summary">${summary}</p>`}
+      <span className="card-foot">
+        ${a.relation &&
+        html`<span className=${`tag relation-${a.relation}`}>
+          ${a.relation === 'direct' ? STR.relationDirect : STR.relationSimilar}
+        </span>`}
+        ${kindBadge(a.kind)}
+        ${verifyBadge(a)}
+        ${chipTags.map((t) => html`<span key=${t} className="tag">${t}</span>`)}
+      </span>
+    </button>
+    ${player &&
+    summary &&
+    html`<button
+      className=${`icon-btn card-play${active ? ' is-active' : ''}`}
+      onClick=${() => (active ? player.stop() : player.playOne(a.id))}
+      title=${active ? STR.stopPlayback : STR.playSummary}
+      aria-label=${active ? STR.stopPlayback : STR.playSummary}
+    >
+      ${loading ? html`<${Icon.spinner} />` : active ? html`<${Icon.stop} />` : html`<${Icon.play} />`}
+    </button>`}
+  </div>`;
+}
+
+function DetailSheet({ id, onClose }) {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const ac = new AbortController();
+    fetchJSON(`/api/article/${id}`, ac.signal)
+      .then(setData)
+      .catch((e) => e.name !== 'AbortError' && setError(e.message));
+    return () => ac.abort();
+  }, [id]);
+
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
+  }, [onClose]);
+
+  const paragraphs = data
+    ? String(data.content || '')
+        .split(/\n{2,}/)
+        .map((p) => p.trim())
+        .filter(Boolean)
+        .slice(0, 200)
+    : [];
+  const allTags = data ? Object.values(data.tags || {}).flat() : [];
+
+  return html`<div className="overlay" onClick=${(e) => e.target === e.currentTarget && onClose()}>
+    <div className="sheet" role="dialog" aria-modal="true" aria-label=${data ? data.title_pt || data.title : STR.loading}>
+      <button className="close" onClick=${onClose} aria-label=${STR.close}>✕</button>
+      ${!data && !error && html`<div className="sheet-loading"><span className="spinner" /></div>`}
+      ${error && html`<div className="state"><h2>${STR.errorTitle}</h2><p>${error}</p></div>`}
+      ${data &&
+      html`<${Fragment}>
+        <div className="eyebrow">
+          ${data.source_name || '—'} · ${bestDate(data)}
+          ${data.kind === 'tool' || data.kind === 'release' ? html` · ${kindBadge(data.kind)}` : null}
+          ${data.verify_status ? html` · ${verifyBadge(data)}` : null}
+        </div>
+        <h2>${data.title_pt || data.title || data.url}</h2>
+        ${data.title_pt && data.title && data.title_pt !== data.title
+          ? html`<div className="eyebrow">${data.title}</div>`
+          : null}
+        ${allTags.length
+          ? html`<div className="tag-cloud">${allTags.map((t) => html`<span key=${t} className="tag">${t}</span>`)}</div>`
+          : null}
+        ${data.summary_pt && html`<p className="lead">${data.summary_pt}</p>`}
+        <hr />
+        <div className="content">
+          ${paragraphs.map((p, i) => html`<p key=${i}>${p}</p>`)}
+        </div>
+        <div className="sheet-actions">
+          <a className="btn-primary" href=${data.url} target="_blank" rel="noopener noreferrer">
+            ${STR.openOriginal} ↗
+          </a>
+        </div>
+      <//>`}
+    </div>
+  </div>`;
+}
+
+// Chips multi-select de fontes: o ESCOPO da busca profunda (mesmo visual .chip do FacetGroup).
+function SourceChips({ sources, selected, onToggle }) {
+  return html`<div className="facet-group source-chips">
+    <span className="facet-label">
+      ${STR.sourcesScope}${selected.length ? '' : ` (${STR.allSelected})`}
+    </span>
+    <div className="chip-row">
+      ${sources.map(
+        (s) => html`<button
+          key=${s.id}
+          className="chip"
+          aria-pressed=${selected.includes(s.id)}
+          onClick=${() => onToggle(s.id)}
+        >
+          ${s.name} <span className="count">${s.count}</span>
+        </button>`,
+      )}
+    </div>
+  </div>`;
+}
+
+// Diálogo de confirmação (guard de custo da busca IA): overlay pequeno, Esc/backdrop cancelam.
+function ConfirmDialog({ title, body, confirmLabel, onConfirm, onCancel }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onCancel();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onCancel]);
+  return html`<div className="overlay" onClick=${(e) => e.target === e.currentTarget && onCancel()}>
+    <div className="dialog" role="dialog" aria-modal="true" aria-label=${title}>
+      <h2>${title}</h2>
+      <p>${body}</p>
+      <div className="dialog-actions">
+        <button className="btn-ghost" onClick=${onCancel}>${STR.cancel}</button>
+        <button className="btn-primary" onClick=${onConfirm}>${confirmLabel}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// Painel de CHAVES (web local): uma linha por provedor (do /api/key/status), com as chaves dos
+// DOIS podendo conviver em NC_HOME/.env. Por linha: [Testar] (probe SEM salvar), [Salvar]
+// (valida + persiste + ATIVA), e [Usar] (ativa a chave já salva — seleção persistente via
+// LLM_PROVIDER, vale para o crawler/CLI). A linha ATIVA fica destacada. `onChanged` re-busca o
+// status (badges/ativa) após qualquer ação.
+function KeyModal({ onSaved, onClose, providers = [], onChanged }) {
+  const [rows, setRows] = useState({}); // id -> {key, checking, result}
+  const [busy, setBusy] = useState(false); // salvar/usar (ação de escrita) — trava tudo
+  const [errMsg, setErrMsg] = useState('');
+  const idOf = (name) => (name === 'DeepSeek' ? 'deepseek' : 'openrouter');
+  const setRow = (id, patch) => setRows((r) => ({ ...r, [id]: { ...(r[id] || {}), ...patch } }));
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  const test = async (p) => {
+    const id = idOf(p.name);
+    const k = String((rows[id] || {}).key || '').trim();
+    if (!k) return;
+    setRow(id, { checking: true, result: null });
+    try {
+      const r = await postJSON('/api/key/test', { key: k, provider: id });
+      setRow(id, { checking: false, result: r.ok ? 'ok' : r.status === 0 ? 'network' : 'invalid' });
+    } catch (e) {
+      setRow(id, { checking: false, result: 'network' });
+    }
+  };
+  const save = async (p) => {
+    const id = idOf(p.name);
+    const k = String((rows[id] || {}).key || '').trim();
+    if (!k || busy) return;
+    setBusy(true);
+    setErrMsg('');
+    try {
+      const r = await postJSON('/api/key', { key: k, provider: id });
+      if (r.ok) return onSaved(); // fecha + re-dispara a busca pendente
+      setErrMsg(r.status === 0 ? STR.keyNetwork : STR.keyInvalid(p.name));
+    } catch (e) {
+      setErrMsg(e.message || STR.keyNetwork);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const select = async (p) => {
+    const id = idOf(p.name);
+    if (busy) return;
+    setBusy(true);
+    setErrMsg('');
+    try {
+      const r = await postJSON('/api/key/select', { provider: id });
+      if (r.ok) onChanged(); // atualiza badges/ativa sem fechar (usuário decide quando fechar)
+      else setErrMsg(r.reason || STR.keyNetwork);
+    } catch (e) {
+      setErrMsg(e.message || STR.keyNetwork);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return html`<div className="overlay" onClick=${(e) => e.target === e.currentTarget && onClose()}>
+    <div className="dialog" role="dialog" aria-modal="true" aria-label="Chaves LLM">
+      <h2>Chaves LLM</h2>
+      <p>Guarde as chaves dos dois provedores em ~/.newsletter-crawler/.env (valem para a web e o crawler). Testar valida sem salvar; salvar ativa o provedor; Usar troca o ativo sem re-digitar.</p>
+      <div className="key-manager">
+        ${providers.map(
+          (p) => html`<section key=${p.keyVar} className=${'key-manager-row' + (p.active ? ' key-manager-row-active' : '')}>
+            <header className="key-manager-head">
+              <strong>${p.name}</strong>
+              ${p.active
+                ? html`<span className="key-manager-badge key-manager-badge-active">${STR.keyActive}</span>`
+                : p.keyPresent
+                  ? html`<span className="key-manager-badge">${STR.keySaved}</span>`
+                  : html`<span className="key-manager-badge key-manager-badge-empty">${STR.keyNoKey}</span>`}
+            </header>
+            <div className="key-row">
+              <input
+                className="control key-input"
+                type="password"
+                value=${(rows[idOf(p.name)] || {}).key || ''}
+                placeholder=${STR.keyPlaceholder(p.name)}
+                onInput=${(e) => setRow(idOf(p.name), { key: e.target.value, result: null })}
+                onKeyDown=${(e) => e.key === 'Enter' && save(p)}
+                disabled=${busy}
+              />
+              <button className="btn-ghost" onClick=${() => test(p)} disabled=${busy || !((rows[idOf(p.name)] || {}).key || '').trim()}>
+                ${(rows[idOf(p.name)] || {}).checking ? STR.keyChecking : STR.keyTest}
+              </button>
+              <button className="btn-primary" onClick=${() => save(p)} disabled=${busy || !((rows[idOf(p.name)] || {}).key || '').trim()}>
+                ${STR.keySave}
+              </button>
+            </div>
+            ${(rows[idOf(p.name)] || {}).result === 'ok' && html`<p className="key-result key-result-ok">${STR.keyTestOk}</p>`}
+            ${(rows[idOf(p.name)] || {}).result === 'invalid' && html`<p className="key-result key-result-bad">${STR.keyInvalid(p.name)}</p>`}
+            ${(rows[idOf(p.name)] || {}).result === 'network' && html`<p className="key-result key-result-bad">${STR.keyNetwork}</p>`}
+            ${p.keyPresent &&
+            html`<footer className="key-manager-actions">
+              <button className="pill" onClick=${() => select(p)} disabled=${busy || p.active}>
+                ${p.active ? STR.keyActive : STR.keyActivate}
+              </button>
+            </footer>`}
+          </section>`,
+        )}
+      </div>
+      ${errMsg && html`<p className="key-error">${errMsg}</p>`}
+      <div className="dialog-actions">
+        <button className="btn-ghost" onClick=${onClose}>${STR.cancel}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// Painel do histórico de buscas: lista completa (data, modo, stats, custo real) com abrir /
+// re-rodar / apagar; "limpar tudo" pede um 2º clique (confirmação inline, sem outro overlay).
+function HistoryPanel({ items, onClose, onOpen, onRerun, onDelete, onClear }) {
+  const [armClear, setArmClear] = useState(false);
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
+  }, [onClose]);
+  return html`<div className="overlay" onClick=${(e) => e.target === e.currentTarget && onClose()}>
+    <div className="sheet history-sheet" role="dialog" aria-modal="true" aria-label=${STR.historyTitle}>
+      <button className="close" onClick=${onClose} aria-label=${STR.close}>✕</button>
+      <h2>${STR.historyTitle}</h2>
+      ${items.length === 0 && html`<p className="muted">${STR.historyEmpty}</p>`}
+      <div className="history-list">
+        ${items.map(
+          (h) => html`<div key=${h.id} className="history-row">
+            <button className="history-main" onClick=${() => onOpen(h.id)} title=${STR.historyOpen}>
+              <span className="shi-query">${h.query}</span>
+              <span className="shi-meta">
+                ${fmtDateTime(h.created_at)}
+                ${` · ${STR.historyModeLabel[h.mode] || h.mode}`}
+                ${` · ${h.stats?.relevant ?? '—'}/${h.stats?.total ?? '—'}`}
+                ${h.spent_usd > 0 ? ` · ${fmtUsd(h.spent_usd)}` : ''}
+              </span>
+            </button>
+            <span className="history-actions">
+              <button className="icon-btn" title=${STR.historyRerun} aria-label=${STR.historyRerun}
+                onClick=${() => onRerun(h.id)}>↻</button>
+              <button className="icon-btn" title=${STR.historyDelete} aria-label=${STR.historyDelete}
+                onClick=${() => onDelete(h.id)}>✕</button>
+            </span>
+          </div>`,
+        )}
+      </div>
+      ${items.length > 0 &&
+      html`<div className="sheet-actions">
+        <button
+          className="btn-ghost"
+          onClick=${() => {
+            if (armClear) {
+              setArmClear(false);
+              onClear();
+            } else setArmClear(true);
+          }}
+        >
+          ${armClear ? STR.historyClearConfirm : STR.historyClear}
+        </button>
+      </div>`}
+    </div>
+  </div>`;
+}
+
+// ---- app ----
+function App() {
+  const [meta, setMeta] = useState(null);
+  const [metaError, setMetaError] = useState(null);
+
+  const [q, setQ] = useState('');
+  const [kind, setKind] = useState('all');
+  const [verify, setVerify] = useState('all');
+  const [sourceId, setSourceId] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [facetSel, setFacetSel] = useState({}); // { faceta: [tags] }
+  const [showFacets, setShowFacets] = useState(false);
+
+  // Busca IA: digitar NÃO filtra nada — Enter/botão dispara a IA; `ai` != null é o modo
+  // resultados (o grid passa a ser dos itens julgados) até "Limpar resultados".
+  const [deep, setDeep] = useState(false);
+  const [deepSources, setDeepSources] = useState([]); // ids das fontes do escopo da profunda
+  const [ai, setAi] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState(null);
+  const [aiProgress, setAiProgress] = useState(null); // {scanned,total,relevant,failed,spentUsd,mode}
+  const [streamItems, setStreamItems] = useState([]); // hits que já chegaram (streaming ao vivo)
+  const [confirmInfo, setConfirmInfo] = useState(null); // {count, usd, opts} vindos do preflight
+  const [aiSpec, setAiSpec] = useState(null); // "entendimento" da consulta (must_have + EN) p/ o banner
+  const [strict, setStrict] = useState(true); // ESTRITO (só 'direct') vs AMPLO (direct+similar) — re-filtra sem repagar
+  const [concurrency, setConcurrency] = useState(8); // paralelismo escolhido (slider); teto vem do meta; AIMD por baixo
+  const [hasKey, setHasKey] = useState(null); // null = ainda não checado
+  const [keyProvider, setKeyProvider] = useState('OpenRouter'); // provedor ATIVO (do /api/key/status)
+  const [keyOpen, setKeyOpen] = useState(false);
+
+  // Histórico de buscas (tabela `searches` no servidor): lista leve p/ dropdown+painel.
+  const [history, setHistory] = useState([]);
+  const [histPanel, setHistPanel] = useState(false);
+  const [histFocus, setHistFocus] = useState(false); // dropdown de recentes ao focar o campo
+
+  const [items, setItems] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState(null);
+  const [detailId, setDetailId] = useState(null);
+  const player = useAudioPlayer();
+
+  const facetKey = JSON.stringify(facetSel);
+  const sentinel = useRef(null);
+  const abortRef = useRef(null);
+  const aiAbortRef = useRef(null); // aborta o stream da busca IA (Cancelar)
+  const aiStartRef = useRef(0); // t0 da busca p/ o ETA do loader
+
+  const buildQuery = useCallback(
+    (offset) => {
+      const sp = new URLSearchParams();
+      if (kind !== 'all') sp.set('kind', kind);
+      if (verify !== 'all') sp.set('verify', verify);
+      if (sourceId) sp.set('source', sourceId);
+      if (from) sp.set('from', from);
+      if (to) sp.set('to', to);
+      if (Object.keys(facetSel).length) sp.set('facets', JSON.stringify(facetSel));
+      sp.set('limit', String(PAGE));
+      if (offset) sp.set('offset', String(offset));
+      return `/api/articles?${sp}`;
+    },
+    [kind, verify, sourceId, from, to, facetKey],
+  );
+
+  const loadMeta = useCallback(() => {
+    setMetaError(null);
+    fetchJSON('/api/meta')
+      .then(setMeta)
+      .catch((e) => setMetaError(e.message));
+  }, []);
+  useEffect(loadMeta, [loadMeta]);
+  // Alinha o slider ao default do servidor quando o meta chega (uma vez; não pisa numa mudança do usuário).
+  const concInitRef = useRef(false);
+  useEffect(() => {
+    if (concInitRef.current || !meta?.search?.concurrency) return;
+    concInitRef.current = true;
+    setConcurrency(meta.search.concurrency.default || 8);
+  }, [meta]);
+
+  // Estado das chaves LLM (ambos os provedores + ativo) p/ o painel do modal e o gate de busca.
+  // Recarregado após QUALQUER ação do painel (salvar/testar/usar) via loadKeyStatus.
+  const [keyStatus, setKeyStatus] = useState(null);
+  const loadKeyStatus = useCallback(() => {
+    fetchJSON('/api/key/status')
+      .then((r) => {
+        setKeyStatus(r);
+        setHasKey(Boolean(r.hasKey));
+        setKeyProvider(r.provider?.name || 'OpenRouter');
+      })
+      .catch(() => setHasKey(null));
+  }, []);
+  useEffect(loadKeyStatus, [loadKeyStatus]);
+
+  // Histórico é acessório: falha de rede não pode quebrar o browse (fica a lista anterior).
+  const loadHistory = useCallback(() => {
+    fetchJSON('/api/searches')
+      .then((r) => setHistory(r.searches || []))
+      .catch(() => {});
+  }, []);
+  useEffect(loadHistory, [loadHistory]);
+
+  // Recarrega a primeira página a cada mudança de filtro (cancelando a anterior).
+  useEffect(() => {
+    if (ai || aiLoading) return; // modo resultados IA: o grid é da IA, o browse pausa
+    abortRef.current?.abort();
+    const ac = new AbortController();
+    abortRef.current = ac;
+    setLoading(true);
+    setError(null);
+    fetchJSON(buildQuery(0), ac.signal)
+      .then((r) => {
+        setItems(r.items);
+        setTotal(r.total);
+        setLoading(false);
+      })
+      .catch((e) => {
+        if (e.name === 'AbortError') return;
+        setError(e.message);
+        setLoading(false);
+      });
+    return () => ac.abort();
+  }, [buildQuery, ai, aiLoading]);
+
+  const loadMore = useCallback(() => {
+    if (ai || aiLoading) return; // a lista IA já vem inteira (sem paginação)
+    if (loading || loadingMore || items.length >= total) return;
+    setLoadingMore(true);
+    fetchJSON(buildQuery(items.length))
+      .then((r) => {
+        setItems((cur) => [...cur, ...r.items]);
+        setTotal(r.total);
+        setLoadingMore(false);
+      })
+      .catch(() => setLoadingMore(false));
+  }, [buildQuery, items.length, total, loading, loadingMore, ai, aiLoading]);
+
+  // Scroll infinito: sentinela + IntersectionObserver (o botão continua p/ acessibilidade).
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el) return;
+    const io = new IntersectionObserver((entries) => entries[0].isIntersecting && loadMore(), {
+      rootMargin: '600px',
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [loadMore]);
+
+  // Dispara a busca IA (Enter/botão): preflight de escopo/custo -> confirmação (profunda sempre;
+  // soft só acima do limiar) -> POST único (a resposta demora o que a IA demorar; spinner cobre).
+  // Função simples (não useCallback): só roda em handler de evento, sempre com estado fresco.
+  // `opts` aceita OVERRIDES explícitos (query/deep/sources/from/to) — o re-rodar do histórico
+  // chama logo após restaurar e não pode depender do setState (assíncrono) já ter aplicado.
+  const doSearch = async (opts = {}) => {
+    const query = (opts.query ?? q).trim();
+    if (!query || aiLoading) return;
+    const isDeep = opts.deep ?? deep;
+    setAiError(null);
+    if (hasKey === false) {
+      setKeyOpen(true); // a "busca pendente" fica nos próprios states (q/deep/escopo)
+      return;
+    }
+    const sources =
+      opts.sources !== undefined
+        ? opts.sources || []
+        : isDeep
+          ? deepSources
+          : sourceId
+            ? [Number(sourceId)]
+            : [];
+    const fromV = opts.from !== undefined ? opts.from : from;
+    const toV = opts.to !== undefined ? opts.to : to;
+    // Guarda os overrides p/ o ConfirmDialog re-disparar a MESMA busca.
+    const carry = { query, deep: isDeep, sources, from: fromV, to: toV };
+    try {
+      if (!opts.confirmed) {
+        const sp = new URLSearchParams();
+        if (isDeep) sp.set('deep', '1');
+        if (sources.length) sp.set('sources', JSON.stringify(sources));
+        if (fromV) sp.set('from', fromV);
+        if (toV) sp.set('to', toV);
+        const pre = await fetchJSON(`/api/search/scope?${sp}`);
+        if (pre.hasKey === false) {
+          setHasKey(false);
+          setKeyOpen(true);
+          return;
+        }
+        if (pre.count === 0) {
+          setAiError(STR.scopeEmpty);
+          return;
+        }
+        if (isDeep || pre.needsConfirm) {
+          setConfirmInfo({ count: pre.count, usd: pre.estimatedUsd, opts: carry });
+          return; // o ConfirmDialog re-chama doSearch({...opts, confirmed:true})
+        }
+      }
+      setConfirmInfo(null);
+      setAi(null); // sai do modo resultados (inclusive congelado) — o grid mostra o streaming
+      setStreamItems([]);
+      setAiSpec(null); // o "entendimento" chega pelo evento SSE 'spec' logo no início
+      setAiProgress({ scanned: 0, total: 0, relevant: 0, failed: 0, spentUsd: 0, mode: isDeep ? 'deep' : 'soft' });
+      aiStartRef.current = Date.now();
+      setAiLoading(true);
+      const ac = new AbortController();
+      aiAbortRef.current = ac;
+      const collected = [];
+      const done = await streamSearch({
+        query,
+        deep: isDeep,
+        sources: sources.length ? sources : null,
+        from: fromV || null,
+        to: toV || null,
+        concurrency,
+        signal: ac.signal,
+        onHit: (item) => {
+          collected.push(item);
+          setStreamItems((cur) => [...cur, item]); // card AO VIVO
+        },
+        onProgress: (p) => setAiProgress((cur) => ({ ...(cur || {}), ...p, mode: isDeep ? 'deep' : 'soft' })),
+        onSpec: (s) => setAiSpec(s),
+      });
+      collected.sort((a, b) => (a.relation === 'direct' ? 0 : 1) - (b.relation === 'direct' ? 0 : 1) || b.id - a.id); // direct 1º
+      setAi({ ...done, items: collected });
+      if (kind === 'release') setKind('all'); // Release não existe no julgamento da IA
+      loadHistory(); // a busca concluída acabou de entrar no histórico do servidor
+    } catch (e) {
+      if (e.name === 'AbortError') {
+        /* Cancelar: sem erro, volta ao browse */
+      } else if (e.code === 'NO_KEY') {
+        setHasKey(false);
+        setKeyOpen(true);
+      } else if (e.status === 409) {
+        setAiError(STR.busyMsg);
+      } else if (e.status === 428) {
+        setConfirmInfo({ count: e.data?.count ?? 0, usd: null, opts: carry }); // corrida rara: preflight mudou
+      } else {
+        setAiError(STR.searchFailed);
+      }
+    } finally {
+      aiAbortRef.current = null;
+      setAiProgress(null);
+      setStreamItems([]);
+      setAiLoading(false);
+      loadMeta(); // badge de custo re-sincroniza (a busca pode ter gastado mesmo falhando)
+    }
+  };
+
+  const clearAi = () => {
+    setAi(null);
+    setAiError(null);
+  };
+
+  // Reabre uma busca salva SEM custo: o detalhe re-hidratado vira o próprio modo resultados
+  // (`ai` com frozen:true) e o ESCOPO salvo volta pros controles — re-rodar é só doSearch().
+  const restoreSearch = async (id) => {
+    setHistPanel(false);
+    setHistFocus(false);
+    try {
+      const d = await fetchJSON(`/api/searches/${id}`);
+      setQ(d.query);
+      setDeep(Boolean(d.deep));
+      const src = Array.isArray(d.scope?.sources) ? d.scope.sources : [];
+      if (d.deep) {
+        setDeepSources(src);
+        setSourceId('');
+      } else {
+        setSourceId(src.length === 1 ? String(src[0]) : '');
+      }
+      setFrom(d.scope?.from || '');
+      setTo(d.scope?.to || '');
+      if (kind === 'release') setKind('all');
+      setAiError(null);
+      setAi({ ...d, frozen: true });
+      return d;
+    } catch (e) {
+      setAiError(e.message || STR.searchFailed);
+      return null;
+    }
+  };
+
+  // Re-roda uma busca do histórico: restaura o escopo E dispara com overrides explícitos
+  // (o estado recém-setado ainda não está visível aqui dentro).
+  const rerunSearch = async (id) => {
+    const d = await restoreSearch(id);
+    if (!d) return;
+    const src = Array.isArray(d.scope?.sources) ? d.scope.sources : [];
+    doSearch({
+      query: d.query,
+      deep: Boolean(d.deep),
+      sources: src.length ? src : [],
+      from: d.scope?.from || '',
+      to: d.scope?.to || '',
+    });
+  };
+
+  const deleteHistoryEntry = async (id) => {
+    try {
+      await fetch(`/api/searches/${id}`, { method: 'DELETE' });
+    } catch {
+      /* offline: a lista re-sincroniza no próximo load */
+    }
+    if (ai?.frozen && ai.id === id) clearAi();
+    loadHistory();
+  };
+
+  const clearHistory = async () => {
+    try {
+      await fetch('/api/searches', { method: 'DELETE' });
+    } catch {
+      /* idem */
+    }
+    if (ai?.frozen) clearAi();
+    setHistPanel(false);
+    loadHistory();
+  };
+
+  const cancelAi = () => {
+    aiAbortRef.current?.abort(); // o finally do doSearch limpa loader/streamItems
+  };
+
+  const toggleTag = (facet, tag) => {
+    setFacetSel((cur) => {
+      const list = cur[facet] || [];
+      const next = list.includes(tag) ? list.filter((t) => t !== tag) : [...list, tag];
+      const out = { ...cur, [facet]: next };
+      if (!next.length) delete out[facet];
+      return out;
+    });
+  };
+
+  const activePills = [];
+  if (sourceId && meta) {
+    const s = meta.sources.find((x) => String(x.id) === String(sourceId));
+    if (s) activePills.push({ label: s.name, clear: () => setSourceId('') });
+  }
+  if (from) activePills.push({ label: `${STR.from.toLowerCase()} ${fmtDate(from)}`, clear: () => setFrom('') });
+  if (to) activePills.push({ label: `${STR.to.toLowerCase()} ${fmtDate(to)}`, clear: () => setTo('') });
+  if (!ai) {
+    // facetas não se aplicam aos resultados IA — pills delas só no browse
+    for (const [facet, tags] of Object.entries(facetSel)) {
+      for (const tag of tags) activePills.push({ label: tag, clear: () => toggleTag(facet, tag) });
+    }
+  }
+  const nFacetSel = Object.values(facetSel).reduce((n, l) => n + l.length, 0);
+  const hasAnyFilter = Boolean(q.trim() || kind !== 'all' || activePills.length);
+
+  const clearAll = () => {
+    setQ('');
+    setKind('all');
+    setSourceId('');
+    setFrom('');
+    setTo('');
+    setFacetSel({});
+    setDeep(false);
+    setDeepSources([]);
+    clearAi();
+  };
+
+  // Itens do modo IA filtrados pelo Segmented (kind do JUIZ) E pelo modo ESTRITO (só 'direct').
+  // ESTRITO/AMPLO re-filtra o MESMO scan (zero LLM): estrito = resposta central; amplo inclui similares.
+  const passKind = (it) => kind === 'all' || (it.judge_kind || it.kind) === kind;
+  const passStrict = (it) => !strict || it.relation === 'direct';
+  const aiItems = ai ? ai.items.filter((it) => passKind(it) && passStrict(it)) : [];
+  const streamShown = aiLoading ? streamItems.filter((it) => passKind(it) && passStrict(it)) : [];
+  // adjacentes (similar) que o modo estrito está ocultando (p/ o hint do banner)
+  const hiddenSimilar = strict
+    ? (ai ? ai.items : streamItems).filter((it) => passKind(it) && it.relation !== 'direct').length
+    : 0;
+  // "entendimento" a exibir: nos resultados vem de ai.spec (inclui histórico congelado); no
+  // streaming vem do evento SSE 'spec' (aiSpec) que chega antes dos hits.
+  const shownSpec = (ai && ai.spec) || (aiLoading && aiSpec) || null;
+  // loader: % e ETA nível-artigo (ETA = elapsed/scanned · restantes; recalcula a cada progress tick)
+  const aiPct = aiProgress && aiProgress.total > 0 ? Math.round(Math.min(1, aiProgress.scanned / aiProgress.total) * 100) : 0;
+  const aiEtaSecs =
+    aiProgress && aiProgress.scanned > 0 && aiProgress.total > aiProgress.scanned && aiStartRef.current
+      ? ((Date.now() - aiStartRef.current) / aiProgress.scanned) * (aiProgress.total - aiProgress.scanned) / 1000
+      : null;
+
+  const dbEmpty = meta && meta.totals.articles === 0;
+  // Lista EXIBIDA (na ordem da tela) — a mesma que o grid mapeia e que o play-all narra em sequência.
+  const shown = ai ? aiItems : aiLoading ? streamShown : items;
+  const canPlayAll = shown.some((a) => a.summary_pt || a.snippet);
+
+  return html`<${Fragment}>
+    <header className="topbar">
+      <div className="container topbar-row">
+        <span className="brand">${STR.brand}<span className="muted">${STR.brandSep}</span></span>
+        <div className="topbar-right">
+          ${meta && meta.cost && meta.cost.totalUsd > 0 &&
+          html`<span className="cost-badge" title=${STR.costTitle}>
+            💸 US$ ${meta.cost.totalUsd.toFixed(2)}
+            <span className="muted"> · ${meta.cost.totalCalls} chamadas</span>
+          </span>`}
+          <button
+            className="icon-btn"
+            onClick=${() => {
+              loadHistory();
+              setHistPanel(true);
+            }}
+            title=${STR.historyTitle}
+            aria-label=${STR.historyTitle}
+          >
+            <${Icon.history} />
+          </button>
+          <${ThemeToggle} />
+        </div>
+      </div>
+    </header>
+
+    <main className="container">
+      <section className="hero">
+        <h1>${STR.heroTitle}</h1>
+        <p>${STR.heroSub}</p>
+        <div className="searchbar">
+          <${Icon.search} />
+          <input
+            type="search"
+            value=${q}
+            placeholder=${STR.searchPlaceholder}
+            onInput=${(e) => setQ(e.target.value)}
+            onKeyDown=${(e) => e.key === 'Enter' && doSearch()}
+            onFocus=${() => setHistFocus(true)}
+            onBlur=${() => setHistFocus(false)}
+            aria-label=${STR.searchPlaceholder}
+            autoFocus
+          />
+          ${histFocus && !q.trim() && history.length > 0 &&
+          html`<div className="search-history" onMouseDown=${(e) => e.preventDefault()}>
+            <span className="search-history-label">${STR.recentLabel}</span>
+            ${history.slice(0, 8).map(
+              (h) => html`<button key=${h.id} className="search-history-item" onClick=${() => restoreSearch(h.id)}>
+                <span className="shi-query">${h.query}</span>
+                <span className="shi-meta">
+                  ${fmtDateTime(h.created_at)} · ${h.stats?.relevant ?? 0} ${STR.aiRelevants(h.stats?.relevant ?? 0)}
+                </span>
+              </button>`,
+            )}
+          </div>`}
+          ${q &&
+          html`<button
+            className="clear"
+            onClick=${() => {
+              setQ('');
+              clearAi();
+            }}
+            aria-label=${STR.clear}
+          >✕</button>`}
+          <button
+            className="btn-primary search-btn"
+            onClick=${() => doSearch()}
+            disabled=${aiLoading || !q.trim()}
+          >
+            ${STR.searchBtn}
+          </button>
+          ${player &&
+          html`<button
+            className=${`icon-btn searchbar-play${player.playing ? ' is-active' : ''}`}
+            onClick=${() => {
+              if (player.playing) return player.stop();
+              if (!hasKey) return setKeyOpen(true);
+              player.playAll(shown);
+            }}
+            disabled=${!canPlayAll}
+            title=${player.playing ? STR.stopPlayback : STR.playAll}
+            aria-label=${player.playing ? STR.stopPlayback : STR.playAll}
+          >
+            ${player.loadingId != null
+              ? html`<${Icon.spinner} />`
+              : player.playing
+                ? html`<${Icon.stop} />`
+                : html`<${Icon.play} />`}
+          </button>`}
+        </div>
+        <div className="deep-row">
+          <label className="deep-toggle">
+            <input type="checkbox" checked=${deep} onChange=${(e) => setDeep(e.target.checked)} />
+            ${STR.searchDeep}
+          </label>
+          <label className="deep-toggle" title=${STR.strictHint}>
+            <input type="checkbox" checked=${strict} onChange=${(e) => setStrict(e.target.checked)} />
+            ${STR.strictToggle}
+          </label>
+          <label className="conc-slider" title=${STR.concHint}>
+            <span className="muted">${STR.concLabel}: <strong>${concurrency}</strong></span>
+            <input
+              type="range"
+              min="1"
+              max=${meta?.search?.concurrency?.ceiling ?? 24}
+              value=${concurrency}
+              onChange=${(e) => setConcurrency(Number(e.target.value))}
+              disabled=${aiLoading}
+            />
+          </label>
+          <span className="muted">${deep ? STR.searchDeepHint : STR.searchHint}</span>
+        </div>
+        ${deep &&
+        meta &&
+        html`<${SourceChips}
+          sources=${meta.sources}
+          selected=${deepSources}
+          onToggle=${(id) =>
+            setDeepSources((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]))}
+        />`}
+        <${Segmented} value=${kind} onChange=${setKind} withRelease=${!ai} />
+
+        <div className="filterbar">
+          <select
+            className="control"
+            value=${sourceId}
+            onChange=${(e) => setSourceId(e.target.value)}
+            aria-label=${STR.allSources}
+            disabled=${deep}
+          >
+            <option value="">${STR.allSources}</option>
+            ${meta &&
+            meta.sources.map(
+              (s) => html`<option key=${s.id} value=${s.id}>${s.name} (${s.count})</option>`,
+            )}
+          </select>
+          ${!ai &&
+          html`<select
+            className="control"
+            value=${verify}
+            onChange=${(e) => setVerify(e.target.value)}
+            aria-label=${STR.verifyAll}
+          >
+            <option value="all">${STR.verifyAll}</option>
+            <option value="ok">✓ ${STR.verifyOk}</option>
+            <option value="suspect">⚠ ${STR.verifySuspect}</option>
+            <option value="junk">✕ ${STR.verifyJunk}</option>
+          </select>`}
+          <input
+            className="control"
+            type="date"
+            value=${from}
+            max=${to || undefined}
+            onChange=${(e) => setFrom(e.target.value)}
+            aria-label=${STR.from}
+          />
+          <input
+            className="control"
+            type="date"
+            value=${to}
+            min=${from || undefined}
+            onChange=${(e) => setTo(e.target.value)}
+            aria-label=${STR.to}
+          />
+          <button
+            className="control"
+            data-on=${from === daysAgo(7) && !to}
+            onClick=${() => {
+              setFrom(daysAgo(7));
+              setTo('');
+            }}
+          >
+            ${STR.last7}
+          </button>
+          <button
+            className="control"
+            data-on=${from === daysAgo(30) && !to}
+            onClick=${() => {
+              setFrom(daysAgo(30));
+              setTo('');
+            }}
+          >
+            ${STR.last30}
+          </button>
+          ${!ai && meta && meta.facets.length
+            ? html`<button
+                className="control"
+                data-on=${showFacets || nFacetSel > 0}
+                onClick=${() => setShowFacets(!showFacets)}
+                aria-expanded=${showFacets}
+              >
+                ${STR.filters} ${nFacetSel > 0 ? html`<span className="badge">${nFacetSel}</span>` : '▾'}
+              </button>`
+            : null}
+        </div>
+
+        ${!ai &&
+        showFacets &&
+        meta &&
+        html`<div className="facet-panel">
+          ${meta.facets.map(
+            (f) => html`<${FacetGroup}
+              key=${f.name}
+              facet=${f}
+              selected=${facetSel[f.name] || []}
+              onToggle=${toggleTag}
+            />`,
+          )}
+        </div>`}
+
+        ${activePills.length
+          ? html`<div className="active-filters">
+              ${activePills.map(
+                (p, i) => html`<span key=${i} className="pill">
+                  ${p.label}
+                  <button onClick=${p.clear} aria-label="remover ${p.label}">✕</button>
+                </span>`,
+              )}
+              <button className="link-btn" onClick=${clearAll}>${STR.clearFilters}</button>
+            </div>`
+          : null}
+      </section>
+
+      ${shownSpec && (shownSpec.must_have?.length || shownSpec.query_en) &&
+      html`<div className="spec-banner" aria-live="polite">
+        <span className="spec-label">${STR.specLabel}:</span>
+        ${(shownSpec.must_have || []).map(
+          (m, i) => html`<span key=${i} className="spec-chip">${m}</span>`,
+        )}
+        ${shownSpec.query_en ? html`<span className="spec-en muted">EN: ${shownSpec.query_en}</span>` : null}
+        ${hiddenSimilar > 0 ? html`<span className="spec-hidden muted"> · ${STR.specHiddenHint(hiddenSimilar)}</span>` : null}
+      </div>`}
+
+      ${aiLoading &&
+      html`<div className="ai-progress" role="status" aria-live="polite">
+        <div className="ai-progress-bar-row">
+          <div className="ai-progress-track">
+            <div
+              className="ai-progress-fill"
+              style=${{ transform: `scaleX(${Math.max(aiProgress && aiProgress.total ? aiProgress.scanned / aiProgress.total : 0, 0.02)})` }}
+            />
+          </div>
+          <span className="ai-progress-pct">${aiPct}%</span>
+          <button className="btn-ghost ai-progress-cancel" onClick=${cancelAi}>${STR.cancel}</button>
+        </div>
+        <div className="ai-progress-meta">
+          <span className="ai-progress-strong">
+            ${aiProgress?.scanned ?? 0}/${aiProgress?.total ?? 0} ${STR.aiUnitArticles}
+          </span>
+          <span> · ${aiProgress?.relevant ?? 0} ${STR.aiRelevants(aiProgress?.relevant ?? 0)}</span>
+          ${aiProgress?.spentUsd > 0 ? html`<span> · ${fmtUsd(aiProgress.spentUsd)}</span>` : null}
+          ${aiEtaSecs != null ? html`<span> · ${STR.aiEta(fmtEtaSecs(aiEtaSecs))}</span>` : null}
+          ${aiProgress?.failed > 0 ? html`<span className="ai-progress-warn"> · ${STR.aiFailed(aiProgress.failed)}</span>` : null}
+          ${deep ? html`<span className="muted"> · ${STR.searchSlowHint}</span>` : null}
+        </div>
+      </div>`}
+
+      ${aiError &&
+      html`<div className="results-banner banner-error">
+        <span>${aiError}</span>
+        <button className="link-btn" onClick=${() => setAiError(null)}>✕</button>
+      </div>`}
+
+      ${ai &&
+      !aiLoading &&
+      html`<div className="results-banner" aria-live="polite">
+        <span>
+          <strong>${STR.aiResultsFor(ai.query)}</strong>
+          <span className="muted">
+            ${ai.frozen ? ` · ${STR.historyRestored(fmtDateTime(ai.created_at))}` : ''}
+            ${` · ${STR.aiStats(ai.relevant, ai.total)}`}
+            ${ai.truncated ? ` · ${STR.aiTruncated(ai.items.length)}` : ''}
+            ${ai.skipped ? ` · ${STR.aiSkipped(ai.skipped)}` : ''}
+            ${ai.frozen && ai.spentUsd > 0 ? ` · ${fmtUsd(ai.spentUsd)}` : ''}
+            ${ai.frozen && ai.missing > 0 ? ` · ${STR.historyMissing(ai.missing)}` : ''}
+          </span>
+        </span>
+        <span className="banner-actions">
+          ${ai.frozen &&
+          html`<button className="link-btn" onClick=${() => doSearch()}>↻ ${STR.historyRerun}</button>`}
+          <button className="link-btn" onClick=${clearAi}>${STR.aiClear}</button>
+        </span>
+      </div>`}
+
+      ${!ai && !aiLoading
+        ? html`<div className="results-meta" aria-live="polite">
+            ${loading ? html`<span className="spinner" />` : null}
+            ${!loading && !error ? STR.results(total) : null}
+          </div>`
+        : null}
+
+      ${metaError || error
+        ? html`<div className="state">
+            <h2>${STR.errorTitle}</h2>
+            <p>${metaError || error}</p>
+            <button className="btn-ghost" onClick=${() => (metaError ? loadMeta() : setQ(q))}>
+              ${STR.retry}
+            </button>
+          </div>`
+        : null}
+
+      ${!ai && !aiLoading && !loading && !error && items.length === 0
+        ? html`<div className="state">
+            <${Icon.empty} />
+            ${dbEmpty && !hasAnyFilter
+              ? html`<${Fragment}><h2>${STR.emptyDbTitle}</h2>
+                  <p>${STR.emptyDbBody}</p>
+                  <p><code>ncrawl crawl</code></p><//>`
+              : html`<${Fragment}><h2>${STR.emptyTitle}</h2>
+                  <p>${STR.emptyBody}</p>
+                  ${hasAnyFilter
+                    ? html`<button className="btn-ghost" onClick=${clearAll}>${STR.clearFilters}</button>`
+                    : null}<//>`}
+          </div>`
+        : null}
+
+      ${ai && !aiLoading && aiItems.length === 0
+        ? html`<div className="state">
+            <${Icon.empty} />
+            ${ai.items.length === 0
+              ? html`<${Fragment}><h2>${STR.noResults(ai.query)}</h2>
+                  <button className="btn-ghost" onClick=${clearAi}>${STR.aiClear}</button><//>`
+              : html`<${Fragment}><h2>${STR.emptyTitle}</h2>
+                  <button className="btn-ghost" onClick=${() => setKind('all')}>${STR.segAll}</button><//>`}
+          </div>`
+        : null}
+
+      <div className="grid">
+        ${shown.map(
+          (a) => html`<${ArticleCard} key=${a.id} a=${a} onOpen=${setDetailId} player=${player} />`,
+        )}
+      </div>
+
+      <div ref=${sentinel}></div>
+      ${!ai && !aiLoading && items.length < total && !loading
+        ? html`<div className="load-more-wrap">
+            <button className="btn-ghost" onClick=${loadMore}>
+              ${loadingMore ? html`<span className="spinner" />` : null} ${STR.loadMore}
+            </button>
+          </div>`
+        : null}
+    </main>
+
+    ${detailId != null && html`<${DetailSheet} id=${detailId} onClose=${() => setDetailId(null)} />`}
+    ${confirmInfo &&
+    html`<${ConfirmDialog}
+      title=${STR.confirmTitle}
+      body=${STR.confirmBody(confirmInfo.count, confirmInfo.usd != null ? confirmInfo.usd.toFixed(2) : '?')}
+      confirmLabel=${STR.confirmRun}
+      onConfirm=${() => {
+        setConfirmInfo(null);
+        doSearch({ ...(confirmInfo.opts || {}), confirmed: true });
+      }}
+      onCancel=${() => setConfirmInfo(null)}
+    />`}
+    ${histPanel &&
+    html`<${HistoryPanel}
+      items=${history}
+      onClose=${() => setHistPanel(false)}
+      onOpen=${restoreSearch}
+      onRerun=${rerunSearch}
+      onDelete=${deleteHistoryEntry}
+      onClear=${clearHistory}
+    />`}
+    ${keyOpen &&
+    html`<${KeyModal}
+      provider=${keyProvider}
+      providers=${keyStatus?.providers || []}
+      onChanged=${loadKeyStatus}
+      onSaved=${() => {
+        setHasKey(true);
+        setKeyOpen(false);
+        doSearch();
+      }}
+      onClose=${() => setKeyOpen(false)}
+    />`}
+  <//>`;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(html`<${App} />`);

@@ -1,0 +1,1015 @@
+// Configuração central: carrega .env, sources e constantes.
+import { readFileSync, existsSync, writeFileSync, mkdirSync, copyFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+import os from 'node:os';
+import { normalizeUrl, warn } from './util.js'; // util é puro (não importa config) -> sem ciclo
+// jev-core é PURO/isomórfico (não importa nada) -> sem ciclo; daqui só o modelo default e o clamp de effort.
+import { JEV_MODEL_DEFAULT, clampEffort } from './shared/jev-core.js';
+
+export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+// ---- diretório "casa" do usuário (dados previsíveis ao rodar o `ncrawl` global) ----
+// Tudo que é RUNTIME/segredo do USUÁRIO (banco SQLite, .env, sources.json, exports) mora aqui —
+// NÃO dentro do repo. Assim o binário linkado (`npm link`) funciona de QUALQUER diretório e os
+// dados ficam num lugar previsível. Override por env `NC_HOME`. O config do APP versionado
+// (config/models.json, config/taxonomy.json e o sources.json semente) continua em ROOT/config.
+export const NC_HOME = process.env.NC_HOME
+  ? path.resolve(process.env.NC_HOME)
+  : path.join(os.homedir(), '.newsletter-crawler');
+mkdirSync(NC_HOME, { recursive: true });
+
+// .env do usuário/global (destino do `ncrawl key set`). Precedência final sobre o .env do repo.
+export const ENV_PATH = path.join(NC_HOME, '.env');
+
+/** Copia `src` -> `dest` só se `dest` ainda não existe (semeia o arquivo do usuário 1x, não-destrutivo). */
+function seedFile(dest, src) {
+  try {
+    if (!existsSync(dest) && existsSync(src)) copyFileSync(src, dest);
+  } catch {
+    /* semeadura é best-effort: se falhar, os loaders caem no default do repo */
+  }
+}
+
+// Guarda de gasto do desenvolvimento (scripts/dev-spend.mjs): o filho recebe DEV_SPEND_GUARDED=1 +
+// BUDGET_USD (o que resta da guarda) + LLM_PROVIDER no env. Os .env abaixo carregam com OVERRIDE —
+// sem este pino, um BUDGET_USD/LLM_PROVIDER no .env do repo ou do NC_HOME venceria o teto do filho
+// (gasto além da guarda, ou chamadas indo p/ a api.deepseek.com). Decidido ANTES de ler os .env: um
+// .env não liga nem desliga a guarda (por isso o próprio DEV_SPEND_GUARDED também fica pinado).
+const ENV_PINNED =
+  process.env.DEV_SPEND_GUARDED === '1' ? new Set(['BUDGET_USD', 'LLM_PROVIDER', 'DEV_SPEND_GUARDED']) : null;
+
+// Carrega o .env do projeto e faz OVERRIDE de variáveis herdadas do shell.
+// (Tanto `node --env-file` quanto process.loadEnvFile NÃO sobrescrevem variáveis
+//  que já existem no ambiente; aqui o .env do projeto tem precedência, para honrar
+//  a chave que o usuário salvou — evitando que uma OPENROUTER_API_KEY antiga no
+//  perfil do shell "sombreie" a correta.) Exceção: as chaves pinadas pela guarda (ENV_PINNED).
+function loadDotEnvOverride(file) {
+  if (!existsSync(file)) return;
+  let txt = '';
+  try {
+    txt = readFileSync(file, 'utf8');
+  } catch {
+    return;
+  }
+  for (const raw of txt.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq === -1) continue;
+    const key = line.slice(0, eq).trim();
+    let val = line.slice(eq + 1).trim();
+    if (
+      (val.startsWith('"') && val.endsWith('"')) ||
+      (val.startsWith("'") && val.endsWith("'"))
+    ) {
+      val = val.slice(1, -1);
+    }
+    if (key && !ENV_PINNED?.has(key)) process.env[key] = val;
+  }
+}
+// Precedência (o último a rodar vence): env do shell < .env do repo (dev) < NC_HOME/.env (usuário).
+// Mantém a regra "o .env do projeto sobrescreve variáveis herdadas do shell" E ainda deixa a chave
+// salva pelo `ncrawl key set` (em NC_HOME/.env) ter a palavra final quando se roda global.
+loadDotEnvOverride(path.join(ROOT, '.env'));
+loadDotEnvOverride(ENV_PATH);
+
+// Key com LIVE BINDING (export let): a web UI seta a key em runtime (POST /api/key) e TODOS os
+// importadores (llm.js, commands.js, crawl.js, screens.js) enxergam o valor novo sem reiniciar —
+// semântica de live bindings do ESM. Não capture em const local ao importar.
+export let OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
+// Chave da API DIRETA da DeepSeek (api.deepseek.com) — usada quando LLM_PROVIDER=deepseek.
+export let DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
+
+// ---- provedor LLM ativo: 'openrouter' (DEFAULT) | 'deepseek' ----
+// Sem auto-detecção: o env decide. Inválido/ausente -> openrouter (comportamento de sempre).
+const clampProvider = (p) => (p === 'deepseek' ? 'deepseek' : 'openrouter');
+export let LLM_PROVIDER = clampProvider(String(process.env.LLM_PROVIDER || 'openrouter').toLowerCase());
+// HAS_LLM é provider-aware: vale o provider ATIVO ter a chave correspondente.
+export let HAS_LLM = Boolean(LLM_PROVIDER === 'deepseek' ? DEEPSEEK_API_KEY : OPENROUTER_API_KEY);
+// O Jev (Decisions API) só existe no OpenRouter: HAS_JEV depende SÓ da chave OpenRouter, qualquer que
+// seja o provedor de chat ativo (live binding, acompanha o setRuntimeKey como o HAS_LLM).
+export let HAS_JEV = Boolean(OPENROUTER_API_KEY);
+
+// BaseURL da API direta da DeepSeek (OpenAI-compatível; o SDK openai anexa /chat/completions).
+export const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com';
+
+// ---- OpenRouter: base da API lida em CALL-TIME ----
+// OPENROUTER_BASE_URL (default https://openrouter.ai/api/v1) é também a COSTURA de teste: um teste
+// aponta p/ um servidor local e o chat (llm.js), o Jev (jev.js) e o /key (keys.js) vão juntos, sem
+// reimportar nada. URL malformada = host público (fail-open, mesmo critério do keys.js).
+export const OPENROUTER_DEFAULT_BASE_URL = 'https://openrouter.ai/api/v1';
+export function openrouterBaseUrl() {
+  const raw = String(process.env.OPENROUTER_BASE_URL || '').trim();
+  if (raw) {
+    try {
+      const u = new URL(raw);
+      return `${u.origin}${u.pathname}`.replace(/\/+$/, '');
+    } catch {
+      /* malformada: cai no host público */
+    }
+  }
+  return OPENROUTER_DEFAULT_BASE_URL;
+}
+/** Endpoint da Decisions API do Jev: {origin da base do OpenRouter}/api/alpha/decisions (call-time). */
+export function jevUrl() {
+  return `${new URL(openrouterBaseUrl()).origin}/api/alpha/decisions`;
+}
+
+// ---- tripwire da rede PAGA em teste ----
+// Sob a suíte (NODE_TEST_CONTEXT, que o `node --test` seta em cada arquivo, ou NC_TEST=1, que a
+// sandbox dos testes seta — cobre também `node test/x.test.js` direto), o transporte PADRÃO do Jev
+// (jev.js) e do chat (fetch do SDK no llm.js) recusa sair p/ a rede: um teste que esqueceu o dublê
+// falha ALTO (PAID_NETWORK_BLOCKED) em vez de gastar com a chave real do shell. Loopback passa (um
+// servidor local de teste não custa nada — é como se exercita o transporte real). Escotilha
+// explícita: NC_ALLOW_PAID_NETWORK=1 (a sandbox a apaga; nunca vale no `npm test`). Lido NA HORA.
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+export function isTestRuntime(env = process.env) {
+  return Boolean(env.NODE_TEST_CONTEXT) || env.NC_TEST === '1';
+}
+export function paidNetworkBlocked(url, env = process.env) {
+  if (env.NC_ALLOW_PAID_NETWORK === '1' || !isTestRuntime(env)) return false;
+  try {
+    const host = new URL(String(url)).hostname.toLowerCase();
+    if (LOOPBACK_HOSTS.has(host) || /^127\.\d+\.\d+\.\d+$/.test(host)) return false;
+  } catch {
+    /* URL ilegível sob teste: bloqueia (fail-safe — o oposto do resto do projeto, de propósito) */
+  }
+  return true;
+}
+
+// Info do provedor ATUAL, calculada em runtime (live bindings): consumida por llm.js e pela
+// onda 2 (keys.js/commands.js/web.js). `keyVar` é o nome da variável de env da chave do provedor.
+export function providerInfo() {
+  if (LLM_PROVIDER === 'deepseek') {
+    return {
+      name: 'DeepSeek',
+      baseURL: DEEPSEEK_BASE_URL,
+      keyVar: 'DEEPSEEK_API_KEY',
+      keyPresent: Boolean(DEEPSEEK_API_KEY),
+    };
+  }
+  return {
+    name: 'OpenRouter',
+    baseURL: openrouterBaseUrl(),
+    keyVar: 'OPENROUTER_API_KEY',
+    keyPresent: Boolean(OPENROUTER_API_KEY),
+  };
+}
+
+/**
+ * Atualiza a chave em RUNTIME (web UI / `ncrawl key set` no mesmo processo) e pode TROCAR o
+ * provedor de uma vez. `setRuntimeKey(key)` mantém o comportamento de hoje (provider atual);
+ * `setRuntimeKey(key, 'deepseek')` muda p/ a API direta e grava a chave nela. `HAS_LLM` e
+ * `LLM_PROVIDER` acompanham (live bindings — todo importador vê sem reiniciar).
+ */
+export function setRuntimeKey(key, provider = LLM_PROVIDER) {
+  const k = String(key || '');
+  LLM_PROVIDER = clampProvider(String(provider || '').toLowerCase());
+  if (LLM_PROVIDER === 'deepseek') {
+    process.env.DEEPSEEK_API_KEY = k;
+    DEEPSEEK_API_KEY = k;
+  } else {
+    process.env.OPENROUTER_API_KEY = k;
+    OPENROUTER_API_KEY = k;
+  }
+  HAS_LLM = Boolean(k);
+  HAS_JEV = Boolean(OPENROUTER_API_KEY);
+}
+
+// config/models.json lido UMA vez (modelos por etapa + bloco "jev"); ausente/ inválido = {} (fail-open).
+const _modelsCfg = loadModelsConfig();
+
+// Modelo do Jev FIXADO (pinned): os limiares de config/jev-thresholds.json valem p/ o snapshot em que
+// foram calibrados (calibratedOn) — o alias sem data pode mover de snapshot, e aí o noteJevModel avisa.
+export const JEV_MODEL = process.env.JEV_MODEL || _modelsCfg.jev?.model || JEV_MODEL_DEFAULT;
+
+export const MODELS = {
+  // Legado (W1): as etapas chat ainda não migradas seguem no deepseek VIA OpenRouter até a onda
+  // delas trocar o models.json; pro também é o default hardcoded e o modelo de escalada do callJSON.
+  pro: process.env.LLM_PRO_MODEL || 'deepseek/deepseek-v4-flash-0731',
+  flash: process.env.LLM_FLASH_MODEL || 'deepseek/deepseek-v4-flash-0731',
+  // Motor de TEXTO da migração Jev (resumos, seletores e o fallback das decisões incertas).
+  chat: process.env.LLM_CHAT_MODEL || 'google/gemini-3.8-flash',
+  escalate: process.env.LLM_ESCALATE_MODEL || process.env.LLM_CHAT_MODEL || 'google/gemini-3.8-flash',
+  jev: JEV_MODEL,
+};
+
+// ---- provedor DeepSeek DIRETO (api.deepseek.com): tradução de slugs + custo local ----
+// O OpenRouter usa slugs "vendor/model" (ex.: deepseek/deepseek-v4-flash-0731); a API direta só
+// aceita o id do MODELO (deepseek-v4-flash | deepseek-v4-pro — os legados deepseek-chat/reasoner
+// foram descontinuados em jul/2026, api-docs.deepseek.com). translateModel é aplicado por
+// stageModel/classifyFacetModel, então o pipeline inteiro resolve o slug direto quando o provider
+// ativo é o deepseek; no openrouter é IDENTIDADE (nenhuma chamada muda).
+// Tabela embutida slugOpenRouter -> idDireto. Overrides por env: DEEPSEEK_MODEL_MAP (JSON de mapa,
+// vence a tabela) e DEEPSEEK_DEFAULT_MODEL (id direto p/ slugs FORA da tabela).
+const DEEPSEEK_DIRECT_SLUGS = {
+  'deepseek/deepseek-v4-flash-0731': 'deepseek-v4-flash', // slug atual do pipeline
+  'deepseek/deepseek-v4-flash': 'deepseek-v4-flash',
+  'deepseek/deepseek-v4-pro': 'deepseek-v4-pro',
+};
+
+// Lido no CALL-TIME (não no load): a função fica pura/testável e o override vale sem reiniciar.
+function envDeepseekModelMap() {
+  try {
+    const raw = process.env.DEEPSEEK_MODEL_MAP;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null; // JSON inválido: falha-open, segue a tabela embutida
+  }
+}
+
+/**
+ * Traduz um slug OpenRouter p/ o id direto da API da DeepSeek (somente com o provider ativo
+ * 'deepseek'; senão, identidade). Regras: slug sem "/" já é direto -> inalterado; DEEPSEEK_MODEL_MAP
+ * vence a tabela embutida; slug na tabela -> direto; fora da tabela -> DEEPSEEK_DEFAULT_MODEL se
+ * setado, senão INALTERADO (fail-open: nunca adivinhar o modelo do outro provedor).
+ */
+export function translateModel(model) {
+  if (LLM_PROVIDER !== 'deepseek') return model;
+  const m = String(model || '');
+  if (!m || !m.includes('/')) return m; // vazio ou já direto (sem prefixo vendor/)
+  const map = envDeepseekModelMap();
+  if (map && map[m]) return String(map[m]);
+  if (DEEPSEEK_DIRECT_SLUGS[m]) return DEEPSEEK_DIRECT_SLUGS[m];
+  return process.env.DEEPSEEK_DEFAULT_MODEL || m;
+}
+
+// Preços oficiais da API direta em USD por 1M de tokens (api-docs.deepseek.com/quick_start/pricing,
+// situação 13/ago/2026): flash input (miss) US$0.14 / cache hit US$0.0028 / output US$0.28; pro
+// US$0.435 / US$0.003625 / US$0.87 (cache de contexto automático p/ prefixo ≥1024 tokens; o usage
+// da API traz prompt_cache_hit_tokens/miss_tokens — computaUsageCost cobra cada parte pelo preço
+// dela). Em 16/ago/2026 a DeepSeek migra p/ preços peak/off-peak — override por env cobre a
+// virada: DEEPSEEK_PRICES={"deepseek-v4-flash":{"input":0.44,"output":1.32,"hit":0.01}} (hit
+// opcional: sem ele, usa o hit da tabela) ou vars finas DEEPSEEK_PRICE_<MODEL>_INPUT_PER_M /
+// _OUTPUT_PER_M / _HIT_PER_M (ex.: DEEPSEEK_PRICE_DEEPSEEK_V4_FLASH_INPUT_PER_M).
+const DEEPSEEK_PRICE_DEFAULT = { input: 0.14, output: 0.28, hit: 0.0028 }; // genérico fora da tabela (base flash)
+const DEEPSEEK_PRICES = {
+  'deepseek-v4-flash': { input: 0.14, output: 0.28, hit: 0.0028 },
+  'deepseek-v4-pro': { input: 0.435, output: 0.87, hit: 0.003625 },
+};
+
+function envDeepseekPrices() {
+  try {
+    const raw = process.env.DEEPSEEK_PRICES;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+// Normaliza o slug p/ chave de env: 'deepseek-v4-flash' -> DEEPSEEK_V4_FLASH.
+const deepseekEnvKeyOf = (slug) => String(slug || '').replace(/[^a-z0-9]+/gi, '_').toUpperCase();
+
+function deepseekPriceFor(model) {
+  // O slug que chega é o DIRETO (o pipeline traduz antes de chamar); o split('/') cobre um slug
+  // OpenRouter que eventualmente caia aqui (lookup pelo nome do modelo). A base é a tabela (ou o
+  // default flash); o override por env cobre {input, output} e o hit (opcional — sem hit no
+  // override, vale o da base, senão cache sairia grátis).
+  const slug = String(model || '').split('/').pop();
+  const base = DEEPSEEK_PRICES[slug] || DEEPSEEK_PRICE_DEFAULT;
+  const envPrices = envDeepseekPrices();
+  const fromMap = envPrices && typeof envPrices[slug] === 'object' ? envPrices[slug] : null;
+  if (fromMap) {
+    const input = Number(fromMap.input);
+    const output = Number(fromMap.output);
+    const hit = Number(fromMap.hit);
+    if (Number.isFinite(input) && Number.isFinite(output)) {
+      return { input, output, hit: Number.isFinite(hit) ? hit : base.hit };
+    }
+  }
+  const ek = deepseekEnvKeyOf(slug);
+  const inEnv = Number(process.env[`DEEPSEEK_PRICE_${ek}_INPUT_PER_M`]);
+  const outEnv = Number(process.env[`DEEPSEEK_PRICE_${ek}_OUTPUT_PER_M`]);
+  const hitEnv = Number(process.env[`DEEPSEEK_PRICE_${ek}_HIT_PER_M`]);
+  if (Number.isFinite(inEnv) && Number.isFinite(outEnv)) {
+    return { input: inEnv, output: outEnv, hit: Number.isFinite(hitEnv) ? hitEnv : base.hit };
+  }
+  return base;
+}
+
+/**
+ * Custo LOCAL (USD) de uma chamada no provedor direto: a api.deepseek.com NÃO traz usage.cost
+ * (isso é accounting do OpenRouter) — calcula de prompt_tokens/completion_tokens × preço do
+ * modelo. É injetado no usage ANTES do commit do ledger (llm.js), que lê usage.cost e fica
+ * INTOCADO. Quando o usage traz detalhes de cache (prompt_cache_hit_tokens/prompt_cache_miss_tokens,
+ * ou prompt_tokens_details.cached_tokens — mesmo espelho do webapp deepseekCostFromUsage), cada
+ * parte é cobrada pelo preço dela: hit×hit + miss×input + completion×output. Sem esses campos cai
+ * no cálculo antigo (prompt_tokens total × input) — compat com qualquer resposta.
+ */
+export function computeUsageCost(usage, model) {
+  const price = deepseekPriceFor(model);
+  const hitRaw = usage?.prompt_cache_hit_tokens ?? usage?.prompt_tokens_details?.cached_tokens;
+  const missRaw = usage?.prompt_cache_miss_tokens;
+  if (hitRaw != null || missRaw != null) {
+    const hit = Number(hitRaw) || 0;
+    // miss ausente/zero -> deriva do total (a API garante prompt_tokens = hit + miss).
+    const miss = Number.isFinite(Number(missRaw)) && Number(missRaw) > 0 ? Number(missRaw) : Math.max((Number(usage?.prompt_tokens) || 0) - hit, 0);
+    const outputTokens = Number(usage?.completion_tokens) || 0;
+    return (hit * price.hit + miss * price.input + outputTokens * price.output) / 1_000_000;
+  }
+  const inputTokens = Number(usage?.prompt_tokens) || 0;
+  const outputTokens = Number(usage?.completion_tokens) || 0;
+  return (inputTokens * price.input + outputTokens * price.output) / 1_000_000;
+}
+
+export const USER_AGENT =
+  process.env.CRAWLER_UA ||
+  'NewsletterArchiver/1.0 (+https://example.com/bot; contato: you@example.com)';
+
+export const HTTP_REFERER = process.env.OPENROUTER_REFERER || 'https://example.com';
+export const X_TITLE = 'NewsletterArchiver';
+
+// ---- TTS (síntese de fala via OpenRouter Audio API, /api/v1/audio/speech) ----
+// Kokoro 82M é o gerador barato com português (US$0,62/M caracteres, saída grátis). A voz PT-BR
+// exata é resolvida no teste local (scripts/tts-smoke.mjs); o Kokoro usa vozes com prefixo p*
+// para português (ex.: pf_dora). Model/voz/formato são override-áveis por env; o webapp lê os
+// mesmos valores via meta.json (export-web) com fallback próprio.
+export const TTS_MODEL = process.env.TTS_MODEL || 'hexgrad/kokoro-82m';
+export const TTS_VOICE = process.env.TTS_VOICE || 'pf_dora';
+export const TTS_FORMAT = process.env.TTS_FORMAT || 'mp3';
+export const TTS_TIMEOUT_MS = Number(process.env.TTS_TIMEOUT_MS || 60000);
+
+// Banco em NC_HOME (previsível/global). `DB_PATH` relativo resolve contra NC_HOME; absoluto vale como é.
+export const DB_PATH = process.env.DB_PATH
+  ? path.resolve(NC_HOME, process.env.DB_PATH)
+  : path.join(NC_HOME, 'crawler.db');
+
+// Destino dos exports (`ncrawl export`). Também em NC_HOME, longe do repo.
+export const EXPORT_DIR = path.join(NC_HOME, 'export');
+
+// ---- backup automático do banco (cinto de segurança das operações destrutivas) ----
+// O banco do usuário JÁ foi apagado duas vezes por um `reset` disparado sem querer na TUI (logs
+// ui-2026-08-25T22-01-44 e ui-2026-09-01T03-16-20; o de 01/09 levou 3249 artigos e ~US$ 12 de LLM
+// 1min45 depois de a coleta terminar). Regra do usuário: "nunca recomece do zero" — reset/purge/
+// remove passam a tirar uma cópia CONSISTENTE (VACUUM INTO) antes de agir (src/backup.js).
+// `BACKUP_DIR` relativo resolve contra NC_HOME; absoluto vale como é (mesma regra do DB_PATH).
+// O diretório é criado SOB DEMANDA por backup.js — nunca no import.
+export const BACKUP_DIR = process.env.BACKUP_DIR
+  ? path.resolve(NC_HOME, process.env.BACKUP_DIR)
+  : path.join(NC_HOME, 'backups');
+// Quantas cópias a retenção mantém. A poda NUNCA apaga a mais recente NEM a com mais artigos.
+// Valor inválido no .env ('abc', '-5', '0', ' ') NÃO pode degradar a retenção: cai no DEFAULT com
+// aviso, nunca em 1 — num módulo cuja tese é "a retenção não pode virar mais uma forma de perder
+// dado", um typo derrubando 10 -> 1 em silêncio seria a mesma armadilha de novo. Mesmo padrão do
+// `envIntOr0` (inteiro > 0, senão o default), com o aviso que aquele helper não dá.
+export const BACKUP_KEEP_DEFAULT = 10;
+export const BACKUP_KEEP = (() => {
+  const raw = process.env.BACKUP_KEEP;
+  if (raw === undefined || raw === '') return BACKUP_KEEP_DEFAULT;
+  const n = Number(raw);
+  if (Number.isFinite(n) && n >= 1) return Math.floor(n);
+  warn(`BACKUP_KEEP inválido (${JSON.stringify(raw)}) — usando o default ${BACKUP_KEEP_DEFAULT}.`);
+  return BACKUP_KEEP_DEFAULT;
+})();
+// Backup antes de toda operação destrutiva (reset/purge/remove). =false volta ao comportamento
+// antigo (destrói sem rede) — é o único jeito de perder dado de novo, e é explícito.
+export const BACKUP_BEFORE_DESTRUCTIVE = process.env.BACKUP_BEFORE_DESTRUCTIVE !== 'false';
+// Intervalo MÍNIMO entre backups PERIÓDICOS (o de operação destrutiva ignora isto e sempre copia):
+// sem ele, um backup por minuto encheria o disco de cópias quase idênticas. Default 1h.
+export const BACKUP_MIN_INTERVAL_MS = Number(process.env.BACKUP_MIN_INTERVAL_MS || 3600000);
+
+// Overrides finos por estágio: 0/ausente = delega ao governador; setado = teto duro
+// (o efetivo vira min(override, lane)). Inteiro > 0, senão 0.
+export const envIntOr0 = (k) => {
+  const v = Number(process.env[k]);
+  return Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
+};
+
+export const CONCURRENCY = envIntOr0('CONCURRENCY');
+export const PER_HOST_CONCURRENCY = Number(process.env.PER_HOST_CONCURRENCY || 2);
+export const REQUEST_DELAY_MS = Number(process.env.REQUEST_DELAY_MS || 1000);
+export const MAX_RETRIES = Number(process.env.MAX_RETRIES || 3);
+export const MAX_HTML_FOR_LLM = Number(process.env.MAX_HTML_FOR_LLM || 120000);
+export const RESPECT_ROBOTS = process.env.CRAWLER_RESPECT_ROBOTS !== 'false';
+// Modo agressivo é o DEFAULT (pedido do usuário): ignora robots.txt + identidade de navegador
+// real. Desligue por run com --no-aggressive ou globalmente com CRAWLER_AGGRESSIVE=false.
+// isBlockedPage e o circuit breaker seguem valendo — agressivo nunca salva página de desafio.
+export const AGGRESSIVE_DEFAULT = process.env.CRAWLER_AGGRESSIVE !== 'false';
+// ---- restore automático do acervo (a base de registro é o snapshot versionado em git) ----
+// Base VAZIA + snapshot no histórico do git => o acervo volta sozinho, em vez de o crawler
+// recomeçar do zero (~600 issues por fonte, horas e dólares de LLM). Vale para quem CLONA o
+// repo, não só para quem apagou a base por engano. Nunca dispara com a base cheia nem sob a
+// suíte de testes (ver src/restore.js). Desligue com CRAWLER_AUTO_RESTORE=false ou --no-restore.
+export const AUTO_RESTORE = process.env.CRAWLER_AUTO_RESTORE !== 'false';
+// Qual corpo vence quando o MESMO artigo aparece em vários snapshots do histórico:
+//   best    (DEFAULT) maior SUBSTÂNCIA (espaços colapsados), rejeitando candidato que é HTML
+//           cru; empate fica com o mais novo. Medido: 'first' deixava 916 corpos maiores para
+//           trás (1.224.751 caracteres), e nos maiores o corpo NOVO é que era o lixo (só o
+//           título, a moldura do GitHub, o blurb do agregador).
+//   first   o corpo do snapshot mais NOVO que tiver um (mais rápido; política anterior).
+//   longest o maior em bytes, sem sanidade nenhuma (auditoria/comparação).
+const BODY_POLICY_IN = String(process.env.CRAWLER_RESTORE_BODY_POLICY || 'best').toLowerCase();
+export const RESTORE_BODY_POLICY = ['best', 'first', 'longest'].includes(BODY_POLICY_IN) ? BODY_POLICY_IN : 'best';
+// ---- piso mínimo de coleta (data dura) ----
+// Nenhuma coleta desce abaixo desta data: um --since anterior é clampado (com aviso) em
+// commands.js; sem flag e sem CRAWLER_SINCE, ele vira o default. O arquivo de um índice
+// Cooperpress (fontes de fábrica) tem ~600 issues — coletar "todo o histórico" gastaria
+// horas/dólares à toa.
+export const MIN_CRAWL_DATE = '2026-01-01';
+// Data de início padrão (piso ISO): quando --since não é passado, usa este valor do .env;
+// sem .env, o fallback é MIN_CRAWL_DATE (nunca mais vazio = sem piso). Ex.: CRAWLER_SINCE=2026-01-01
+export const DEFAULT_SINCE = process.env.CRAWLER_SINCE || MIN_CRAWL_DATE;
+
+// ---- pipeline de qualidade por IA (curadoria de roundup, limpeza pré-save, verificação) ----
+// Curadoria: a página do agregador é processada por LLM em ITENS estruturados (news/tool/
+// release + blurb da própria issue); o item é CADASTRADO já na curadoria e depois enriquecido.
+export const CURATE_ROUNDUPS = process.env.CURATE_ROUNDUPS !== 'false';
+// Tamanho de cada chunk do markdown da issue enviado a um agente de curadoria (issues maiores
+// que isso são divididas e processadas por agentes EM PARALELO na lane llm).
+export const CURATE_CHUNK_CHARS = Number(process.env.CURATE_CHUNK_CHARS || 24000);
+// Limpeza por IA antes de salvar: remove sujeira de UI (menus/subscribe/rodapé) do conteúdo
+// extraído, preservando o texto do artigo. Recorte de custo em CLEAN_MAX_CHARS.
+export const CLEAN_BEFORE_SAVE = process.env.CLEAN_BEFORE_SAVE !== 'false';
+export const CLEAN_MAX_CHARS = Number(process.env.CLEAN_MAX_CHARS || 20000);
+// Verificação pós-cadastro (varredura paralela ao fim do crawl + comando `ncrawl verify`):
+// veredito ok|suspect|junk + notas por artigo, persistidos p/ auditoria via `ncrawl inspect`.
+export const VERIFY_AFTER_CRAWL = process.env.VERIFY_AFTER_CRAWL !== 'false';
+export const VERIFY_MAX_CHARS = Number(process.env.VERIFY_MAX_CHARS || 4000);
+export const VERIFY_CONCURRENCY = envIntOr0('VERIFY_CONCURRENCY');
+// Verificação em STREAMING: verifica cada ficha logo após salvar/enriquecer (aproveitando a
+// folga da lane llm durante o crawl), em vez de só num sweep no fim. O sweep final segue ligado
+// como rede de segurança (idempotente, NULL-only) p/ os blurb-only que nunca enriqueceram.
+export const VERIFY_STREAMING = process.env.VERIFY_STREAMING !== 'false';
+// Streaming de classify/summarize (espelha VERIFY_STREAMING): classifica/resume cada ficha logo
+// após salvar/enriquecer, na folga da lane llm, em vez de só no sweep pós-crawl. Os sweeps seguem
+// como rede de segurança idempotente (delta-only, needs-*).
+export const CLASSIFY_STREAMING = process.env.CLASSIFY_STREAMING !== 'false';
+export const SUMMARIZE_STREAMING = process.env.SUMMARIZE_STREAMING !== 'false';
+
+// ---- pool de PROCESSOS de parsing (isola o JSDOM do processo principal) ----
+// O parse JSDOM/Readability (causa de um SIGSEGV nativo raro do parser de CSS do JSDOM) sai do
+// processo principal p/ um pool de PROCESSOS-filho (child_process/fork): um crash — inclusive um
+// SIGSEGV nativo — mata só o filho, o pool respawna e a task resolve p/ um default seguro (o
+// chamador degrada). worker_threads NÃO serviam: threads compartilham o processo, um segfault
+// derrubava tudo. Também libera paralelismo de CPU real.
+export const PARSE_WORKERS =
+  envIntOr0('PARSE_WORKERS') ||
+  Math.max(1, Math.min(6, os.availableParallelism() >= 4 ? Math.round(os.availableParallelism() / 2) : 1));
+// Timeout por task de parse: um JSDOM travado não segura um worker p/ sempre (mata e respawna).
+export const PARSE_TIMEOUT_MS = Number(process.env.PARSE_TIMEOUT_MS || 30000);
+// Timeout de STARTUP do filho: se não mandar o handshake 'ready' nesse prazo (fork ok mas travou
+// ao carregar), é descartado e conta como falha de spawn (após MAX_SPAWN_FAILS o pool vai inline).
+export const PARSE_READY_TIMEOUT_MS = Number(process.env.PARSE_READY_TIMEOUT_MS || 10000);
+// =false força o caminho INLINE (parse no processo principal, comportamento antigo) — útil em
+// ambientes sem child_process/IPC ou p/ depurar. O pool também cai p/ inline sozinho se não subir.
+export const PARSE_IN_WORKERS = process.env.PARSE_IN_WORKERS !== 'false';
+
+// ---- deadline por job (o retardatário não segura o fim da execução) ----
+// Orçamento de TRABALHO por job de artigo (0 = sem deadline): conta só as fases fetch/render/
+// parse (createJobClock); esperas de fila (lanes, politeness por host) e as fases LLM ficam com
+// o relógio PARADO — elas têm timeouts/orçamento próprios. Estourou: o job é ABORTADO de verdade
+// (AbortSignal — sem zumbi segurando lane); item curado mantém o blurb (needs_enrich=1) e é
+// re-enfileirado p/ enriquecer num próximo crawl; nada se perde.
+export const JOB_TIMEOUT_MS = Number(process.env.JOB_TIMEOUT_MS || 90000);
+// Teto DURO de tempo de PAREDE por job de artigo (rede de segurança p/ fase não instrumentada
+// ou espera patológica). 0 desliga; default 10x o orçamento de trabalho.
+export const JOB_HARD_TIMEOUT_MS = Number(
+  process.env.JOB_HARD_TIMEOUT_MS || (JOB_TIMEOUT_MS > 0 ? JOB_TIMEOUT_MS * 10 : 0),
+);
+// Curadoria (listing/roundup) tem POOL de reivindicação próprio: a fase de LLM (por seção +
+// cobertura) é longa e NÃO deve ocupar a capacidade de fetch/render dos artigos. CURATE_JOBS=0
+// => default calculado em commands.js (max(2, ceil(MAX_PARALLEL/4))). DEADLINE DE PAREDE com
+// default FINITO (20 min) + AbortSignal: sem corte, um job wedged (await que nunca resolve —
+// medido 2026-10-09: 2 runs congeladas em curadoria) segura o drain da run PARA SEMPRE. O corte
+// aborta o trabalho em voo (LLM/Playwright honram o signal), o job volta p/ a próxima run e o
+// fan-out perdido é recuperado (o roundup é re-curado inteiro). ROUNDUP_TIMEOUT_MS=0 restaura o
+// "sem corte" antigo.
+export const CURATE_JOBS = envIntOr0('CURATE_JOBS');
+export const ROUNDUP_TIMEOUT_MS =
+  process.env.ROUNDUP_TIMEOUT_MS != null && process.env.ROUNDUP_TIMEOUT_MS !== ''
+    ? Number(process.env.ROUNDUP_TIMEOUT_MS)
+    : 1200000;
+// Teto de tentativas de ENRIQUECIMENTO por alvo (em RODADAS de crawl): um alvo que falhou N
+// runs seguidas p/ entregar o corpo para de ser re-enfileirado — o item curado fica com o
+// blurb do agregador (fail-open: o registro continua válido) em vez de a run inteira
+// re-falhar os mesmos alvos mortos (domínio NXDOMAIN, PDF sem handler, ...) a cada execução.
+// 0 desliga o teto (comportamento antigo: re-tentar sempre).
+export const ENRICH_MAX_ATTEMPTS = Number(process.env.ENRICH_MAX_ATTEMPTS || 3);
+
+// ---- paralelismo global + orçamento (governor/budget) ----
+// Teto GLOBAL de operações simultâneas (--parallel). Deriva dos núcleos como proxy do porte
+// da máquina (o trabalho é I/O-bound, não CPU-bound); clamp p/ ser útil de VPS a workstation.
+export function defaultParallel() {
+  // Proxy do porte da máquina (o trabalho é I/O-bound, não CPU-bound). O teto alto (128) existe
+  // porque as LANES param de crescer pelos ALVOS DE % LIVRE do governador, não por este número:
+  // em máquinas grandes sobra headroom e quem decide onde parar são RAM/CPU livres medidos.
+  return Math.min(128, Math.max(4, os.availableParallelism() * 2));
+}
+export const MAX_PARALLEL = envIntOr0('MAX_PARALLEL') || defaultParallel();
+// Teto CALIBRADO da lane llm (0 = sem teto prévio): o governador começa a lane neste valor
+// (clamp piso 3..teto do perfil) e só o abaixa por falhas de API (429). Persistido em
+// NC_HOME/.env pela calibração automática do fim de run (editável por `ncrawl limits set
+// --llm-cap N`; 0 limpa). É o "valor limite" aprendido: converge p/ o nível sem 429.
+export const GOVERNOR_LLM_CAP = envIntOr0('GOVERNOR_LLM_CAP');
+// Orçamento por execução em USD (0 = ilimitado). O ledger grava o custo real SEMPRE.
+export const BUDGET_USD = Number(process.env.BUDGET_USD || 0);
+// Custo AO VIVO no CLI (npm run crawl): intervalo entre linhas de "gasto parcial" (lê o mesmo
+// snapshot em memória da TUI). Na TUI o painel já mostra ao vivo; isto cobre o CLI puro.
+export const COST_LOG_INTERVAL_MS = Number(process.env.COST_LOG_INTERVAL_MS || 10000);
+// Teto de uso de RAM DO SISTEMA: o governador mantém MemAvailable >= max(total*(1-pct/100), 2 GiB).
+// É a RAM da máquina inteira (desktop incluso), não o RSS do processo — Chromium é filho externo.
+// RAM_MAX_PCT é o CEILING duro (nunca usa mais que 100-pct% de RAM); as LANES crescem
+// incrementalmente até os alvos de % livre abaixo.
+export const RAM_MAX_PCT = Number(process.env.RAM_MAX_PCT || 80);
+// ---- alvos de % LIVRE do sistema (o usuário define PORCENTAGEM livre, não número absoluto) ----
+// O governador cresce o paralelismo +1/tick ENQUANTO a memória livre e a CPU livre medidas
+// estiverem ACIMA destes alvos; para de crescer quando qualquer uma entra na faixa-alvo e
+// encolhe quando alguma cai abaixo. Default = 100 - RAM_MAX_PCT (mantém compat com o histórico).
+// É a RAM/CPU da máquina inteira (desktop incluso), não o RSS do processo.
+export const RAM_FREE_TARGET_PCT = Number(process.env.RAM_FREE_TARGET_PCT || (100 - RAM_MAX_PCT));
+// Alvo de CPU OCIOSA (tempo idle do /proc/stat) mínima: cresce enquanto sobrar CPU livre acima disso.
+export const CPU_FREE_TARGET_PCT = Number(process.env.CPU_FREE_TARGET_PCT || 40);
+// Faixa de guarda em volta dos alvos de % livre (histérese: não fica oscilando na borda).
+export const RAM_HYSTERESIS_PCT = Number(process.env.RAM_HYSTERESIS_PCT || 10);
+export const GOVERNOR_TICK_MS = Number(process.env.GOVERNOR_TICK_MS || 1000);
+// Estimativa de RAM de um render Chromium (contexto+página) p/ o ramp da lane render.
+export const RENDER_EST_MB = Number(process.env.RENDER_EST_MB || 300);
+// Timeout por chamada LLM. O default do SDK seria 10 min E re-tentado — em paralelismo alto,
+// um lote pendurado seguraria slots por até 40 min e cegaria o governador.
+export const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS || 180000);
+
+// ---- Jev (Decisions API do OpenRouter: src/jev.js + src/decide.js) ----
+// Número finito >= 0 do env, senão o default (inválido nunca vira NaN silencioso num limite).
+const envNumOr = (k, dflt) => {
+  const raw = process.env[k];
+  if (raw == null || String(raw).trim() === '') return dflt;
+  const v = Number(raw);
+  return Number.isFinite(v) && v >= 0 ? v : dflt;
+};
+const OFF_WORDS = new Set(['false', '0', 'off', 'no']);
+/** Liga/desliga GLOBAL do Jev, lido NA HORA (default ligado; false = modo só-Gemini: tudo vai ao fallback). */
+export function jevEnabled() {
+  return !OFF_WORDS.has(String(process.env.JEV_ENABLED ?? '').trim().toLowerCase());
+}
+export const JEV_ENABLED = jevEnabled();
+// Timeout de UMA chamada (o Jev responde em ~0,3–0,6 s; 20 s cobre fila do provedor sem segurar a lane).
+export const JEV_TIMEOUT_MS = envNumOr('JEV_TIMEOUT_MS', 20000) || 20000;
+// Retentativas de 429/5xx/rede por request (além da 1ª tentativa). 400/401/402/403/404/413/422 não repetem.
+export const JEV_RETRIES = Math.floor(envNumOr('JEV_RETRIES', 2));
+// Teto de UMA espera de retry de 5xx/rede (backoff 250ms·2^n com jitter, ou o Retry-After do servidor).
+export const JEV_MAX_RETRY_WAIT_MS = envNumOr('JEV_MAX_RETRY_WAIT_MS', 10000);
+// Lane 'jev' e portão de rps: o governor.js/ratelimit.js leem estas chaves do env NA HORA (initGovernor
+// e cada take); os exports aqui servem ao `limits show`, à documentação e ao initGovernor explícito.
+export const JEV_CONCURRENCY = Math.floor(envNumOr('JEV_CONCURRENCY', 8)) || 8;
+export const GOVERNOR_JEV_CAP = envIntOr0('GOVERNOR_JEV_CAP');
+export const JEV_MAX_RPS = envNumOr('JEV_MAX_RPS', 15); // 0 desliga o portão (a penalidade de 429 segue)
+// Orçamento de tokens por request (limites duros: 64K no total e state + a maior pergunta <= 32K). O
+// state é clipado ESTRUTURALMENTE (jev-core clipState) a JEV_MAX_STATE_TOKENS antes do planejamento; o
+// resto é dividido em vários requests (cada um paga o state de novo) pelo planRequests.
+export const JEV_MAX_STATE_TOKENS = Math.floor(envNumOr('JEV_MAX_STATE_TOKENS', 24000)) || 24000;
+export const JEV_MAX_REQUEST_TOKENS = Math.min(64000, Math.floor(envNumOr('JEV_MAX_REQUEST_TOKENS', 56000)) || 56000);
+// Perguntas por request: provisório até o smoke pago da W1 medir se 40/120 são aceitas num request só.
+export const JEV_MAX_QUESTIONS_PER_REQUEST = Math.floor(envNumOr('JEV_MAX_QUESTIONS_PER_REQUEST', 120)) || 120;
+// Preço de entrada do Jev 1.13 (US$/1M tokens; saída grátis) — só p/ o custo LOCAL quando a resposta
+// vier sem usage.cost (o OpenRouter manda; o ledger não pode registrar 0 por falta do campo).
+export const JEV_PRICE_PER_M = envNumOr('JEV_PRICE_PER_M', 0.042);
+// Lints de conceito do jev-core (geração de texto, contagem/datas, pergunta composta) como AVISO.
+export const JEV_LINT = process.env.JEV_LINT === 'true';
+// Trace das decisões (tabela jev_decisions): min (default: não-aceitas + amostra de 5% dos aceitos) |
+// full | off. O events.js lê NA HORA; o export é p/ status/docs.
+export const JEV_TRACE = ['min', 'full', 'off'].includes(String(process.env.JEV_TRACE || '').toLowerCase())
+  ? String(process.env.JEV_TRACE).toLowerCase()
+  : 'min';
+// Fração das decisões ACEITAS também conferidas no Gemini (concordância p/ calibração; custa dinheiro).
+// Produção = 0; o eval liga.
+export const JEV_SHADOW_RATE = Math.min(1, envNumOr('JEV_SHADOW_RATE', 0));
+// Sub-teto em US$ do fallback Gemini por run (0 = sem sub-teto próprio: com --budget vale 50% dele).
+// O budget.js lê NA HORA; o export é p/ status/docs.
+export const GEMINI_FALLBACK_BUDGET_USD = envNumOr('GEMINI_FALLBACK_BUDGET_USD', 0);
+// Disjuntor por etapa (decide.js): N erros SEGUIDOS do Jev abrem o circuito por JEV_CIRCUIT_OPEN_MS —
+// nesse intervalo as decisões vão direto ao fallback, sem pagar retries contra um Jev fora do ar.
+export const JEV_CIRCUIT_ERRORS = Math.floor(envNumOr('JEV_CIRCUIT_ERRORS', 5)) || 5;
+export const JEV_CIRCUIT_OPEN_MS = envNumOr('JEV_CIRCUIT_OPEN_MS', 60000);
+
+// ---- crawl multinível (índice -> roundup/issue -> artigo) ----
+// Profundidade máxima da recursão (índice=0, issue=1, artigo=2, roundup-do-artigo=3...).
+// Trava de segurança contra recursão infinita em páginas que parecem coleções.
+export const MAX_CRAWL_DEPTH = Number(process.env.MAX_CRAWL_DEPTH || 3);
+// Nº mínimo de links externos no corpo (Readability) p/ considerar uma issue/roundup válida.
+export const ROUNDUP_MIN_LINKS = Number(process.env.ROUNDUP_MIN_LINKS || 3);
+// Reclassificar um ARTIGO como roundup (dividir em N) exige TRÊS sinais juntos, pois o nº de
+// links sozinho é fraco: um paper científico tem dezenas/centenas de referências e NÃO é um
+// roundup. Só dividimos quando a página é PREDOMINANTEMENTE uma lista de links (pouca prosa)
+// e o nº de links externos está numa faixa "de roundup" (nem poucos, nem um link-farm).
+export const ARTICLE_ROUNDUP_MIN_LINKS = Number(process.env.ARTICLE_ROUNDUP_MIN_LINKS || 10);
+export const ARTICLE_ROUNDUP_MAX_LINKS = Number(process.env.ARTICLE_ROUNDUP_MAX_LINKS || 60);
+// Acima disto de prosa (chars do corpo Readability) a página é um ARTIGO, não uma lista.
+export const ROUNDUP_MAX_PROSE_CHARS = Number(process.env.ROUNDUP_MAX_PROSE_CHARS || 1500);
+// Scroll infinito (perfil listing): nº de checagens CONSECUTIVAS sem nenhum link novo no DOM
+// p/ declarar o feed estagnado e parar de rolar (a parada por data --since e o teto de rodadas
+// continuam valendo). Evita gastar sempre as 60 rodadas/90s num feed que não cresce mais.
+export const SCROLL_STALL_CHECKS = Number(process.env.SCROLL_STALL_CHECKS || 3);
+// Rolagem (perfil listing): passo em px por rodada e TETO da espera adaptativa por conteúdo novo.
+// O settle sai cedo assim que a página cresce (feed rápido) e é paciente até SCROLL_SETTLE_MAX_MS
+// (feed lento) — no lugar do antigo pause fixo de 800ms, que truncava feed lento e desperdiçava
+// tempo em feed rápido.
+export const SCROLL_STEP = Number(process.env.SCROLL_STEP || 1200);
+export const SCROLL_SETTLE_MAX_MS = Number(process.env.SCROLL_SETTLE_MAX_MS || 2500);
+// Perfis de render (antes hard-coded em RENDER_PROFILES/fetch.js): nº máx de rodadas de scroll e
+// deadline de parede (ms) por perfil, e máx de cliques em "carregar mais" por página (listing).
+export const SCROLL_ROUNDS = Number(process.env.SCROLL_ROUNDS || 60);
+export const SCROLL_ROUNDS_ARTICLE = Number(process.env.SCROLL_ROUNDS_ARTICLE || 8);
+export const RENDER_LISTING_DEADLINE_MS = Number(process.env.RENDER_LISTING_DEADLINE_MS || 90000);
+export const RENDER_ARTICLE_DEADLINE_MS = Number(process.env.RENDER_ARTICLE_DEADLINE_MS || 30000);
+export const MAX_LOAD_MORE = Number(process.env.MAX_LOAD_MORE || 50);
+
+// ---- modelos por etapa do pipeline (config/models.json + override por env) ----
+// Default de TODAS as etapas: deepseek/deepseek-v4-flash-0731 + xhigh ("ultrathink"). Para o
+// DeepSeek V4, "max" é rejeitado com HTTP 400 — por isso o teto real é "xhigh" (guard abaixo).
+export const STAGE_KEYS = [
+  'linkSelector', // deriva o seletor CSS dos links da listagem
+  'linkExtract', // fallback: extrai links item-a-item
+  'roundupExtract', // fallback: extrai links externos curados de uma issue/roundup
+  'nextLink', // deriva o link da próxima página (paginação)
+  'contentSelector', // deriva o seletor CSS do corpo do artigo
+  'articleExtract', // fallback: extrai título/corpo/data do artigo
+  'classify', // classificação multi-faceta de tags
+  'summarize', // resumo + título em PT-BR (high)
+  'searchRelevance', // busca modo A: julga artigo vs consulta (high, 50x)
+  'searchBatch', // busca soft da web: julga um LOTE de ~40 artigos vs consulta (medium)
+  'searchTags', // busca modo B: mapeia consulta -> tags por faceta (high)
+  'searchSpec', // busca precisão-primeiro: "entende" a consulta -> spec (high, 1x por busca)
+  'curate', // curadoria da issue: itens estruturados news/tool/release (high, chunks paralelos)
+  'articleClean', // limpeza pré-save do conteúdo extraído (medium)
+  'verifyRecord', // verificação pós-cadastro: veredito ok|suspect|junk (high)
+  'dateSelector', // seletor de DATA da listagem (CSS + regex) lendo a página real (high)
+  'detectType', // detecção automática do tipo da fonte (index|listing) ao adicionar (high, 1x/add)
+  // articleReclean (re-limpeza FORTE dos suspect) ficou anos FORA desta lista: o stageModel caía no
+  // default (xhigh) ignorando o 'high' do models.json. Na lista, o arquivo vale.
+  'articleReclean',
+  // Etapas chat/Gemini da navegação (W5b) registradas já na W1 — as ondas só trocam o models.json
+  // delas, sem disputar este arquivo. Até lá resolvem pelo default.
+  'pageAssess', // fallback Gemini da avaliação de página (bloqueio/conteúdo) quando o Jev fica inseguro
+  'linkPick', // fallback Gemini da escolha de links da listagem/índice
+  'navAutopilot', // fallback Gemini do autopiloto de ações de navegação
+];
+
+// ---- etapas do Jev (nome termina em 'Jev'; a BASE = o nome sem o sufixo = a etapa chat/Gemini) ----
+// A base continua em STAGE_KEYS/models.json (LLM_MODEL_<BASE>, histórico do ledger, fallback Gemini);
+// a etapa Jev fica SÓ aqui — nunca no models.json (o modelo do Jev é global e fixado: JEV_MODEL).
+// Registradas todas de uma vez (W1) p/ as ondas W2–W6 não disputarem este arquivo.
+export const JEV_STAGES = Object.freeze([
+  'jevHealth', // sonda de 1 noul (ncrawl key test --jev, smoke, guarda de gasto) — W1
+  'summaryQaJev', // QA do resumo Gemini (base: summarize) — W2
+  'verifyRecordJev', // verificação ok|suspect|junk (base: verifyRecord) — W3
+  'articleCleanJev', // limpeza por blocos (base: articleClean) — W3
+  'articleRecleanJev', // re-limpeza forte dos suspect (base: articleReclean) — W3
+  'articleExtractJev', // extração por blocos, modo 'extract' (base: articleExtract) — W3
+  'classifyJev', // classificação por faceta em blocos + confirmação (base: classify) — W4
+  'curateJev', // curadoria de issue/roundup por candidato (base: curate) — W5a
+  'detectTypeJev', // tipo da fonte index|listing (base: detectType) — W5a
+  'pageAssessJev', // página bloqueada/conteúdo (base: pageAssess) — W5b
+  'linkPickJev', // escolha de links (base: linkPick) — W5b
+  'nextPickJev', // próxima página (Gemini: nextLink/deriveNextLink) — W5b
+  'navAutopilotJev', // autopiloto de ações (base: navAutopilot) — W5b
+  'searchSpecJev', // entendimento da consulta + tags do modo B (base: searchSpec) — W6
+  'searchBatchJev', // busca soft em lote (base: searchBatch) — W6
+  'searchRelevanceJev', // busca profunda por artigo (base: searchRelevance) — W6
+]);
+
+/** Base de uma etapa do Jev: 'verifyRecordJev' -> 'verifyRecord' (sem o sufixo, o nome fica igual). */
+export function jevBaseStage(stage) {
+  return String(stage || '').replace(/Jev$/, '');
+}
+// Token de env: camelCase -> SNAKE, qualquer não-alfanumérico -> '_' ('facets.domain.minConf' -> FACETS_DOMAIN_MIN_CONF).
+const envTokenOf = (s) =>
+  String(s || '')
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[^A-Za-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toUpperCase();
+/** Sufixo de env da BASE de uma etapa Jev: 'verifyRecordJev' -> 'VERIFY_RECORD' (JEV_ENGINE_<BASE>, JEV_TH_<BASE>_<KEY>). */
+export function jevEnvBase(stage) {
+  return envTokenOf(jevBaseStage(stage));
+}
+
+// ---- limiares do Jev: config/jev-thresholds.json (ÚNICO registro; só o eval o escreve) ----
+// {calibratedOn, <etapaJev>: {calibratedAt, n, ...chaves nomeadas}}. Duas semânticas, sempre NOMEADAS
+// por chave: certeza (minConf, 0..1 sobre certainty()) e faixa de probabilidade ({lo, hi} sobre o p de
+// um noul ou a pMass de uma choice). Probabilidades de perguntas DIFERENTES nunca se comparam.
+const JEV_THRESHOLDS_PATH = path.join(ROOT, 'config', 'jev-thresholds.json');
+let _jevThresholds = null;
+function jevThresholdsCfg() {
+  if (_jevThresholds) return _jevThresholds;
+  try {
+    const raw = JSON.parse(readFileSync(JEV_THRESHOLDS_PATH, 'utf8'));
+    _jevThresholds = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  } catch {
+    _jevThresholds = {}; // ausente/ inválido: todo limiar cai no default do código (fail-open)
+  }
+  return _jevThresholds;
+}
+const isPlainObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+// Um limiar válido é um número finito ou um objeto (faixa {lo, hi} ou bloco aninhado, ex. facets).
+const validThreshold = (v) => (typeof v === 'number' && Number.isFinite(v)) || isPlainObj(v);
+const _warnedThresholdEnv = new Set();
+
+/**
+ * Limiar `key` da etapa Jev `stage`: env JEV_TH_<BASE>_<KEY> (número ou JSON, ex. {"lo":0.2,"hi":0.7})
+ * > config/jev-thresholds.json[stage][key] > `dflt`. `key` aceita caminho com ponto p/ blocos aninhados
+ * ('facets.domain.minConf' -> env JEV_TH_CLASSIFY_FACETS_DOMAIN_MIN_CONF). Valor inválido = default.
+ */
+export function jevThreshold(stage, key, dflt) {
+  const envKey = `JEV_TH_${jevEnvBase(stage)}_${envTokenOf(key)}`;
+  const raw = process.env[envKey];
+  if (raw != null && String(raw).trim() !== '') {
+    const s = String(raw).trim();
+    let v = Number(s);
+    if (!Number.isFinite(v)) {
+      try {
+        v = JSON.parse(s);
+      } catch {
+        v = undefined;
+      }
+    }
+    if (validThreshold(v)) return v;
+    if (!_warnedThresholdEnv.has(envKey)) {
+      _warnedThresholdEnv.add(envKey);
+      warn(`${envKey} inválido (${JSON.stringify(s)}) — usando o limiar do arquivo/default`);
+    }
+  }
+  let node = jevThresholdsCfg()[stage];
+  for (const part of String(key).split('.')) {
+    if (!isPlainObj(node) || !Object.prototype.hasOwnProperty.call(node, part)) return dflt;
+    node = node[part];
+  }
+  return validThreshold(node) ? node : dflt;
+}
+
+/** Snapshot em que os limiares foram calibrados (jev-thresholds.json > models.json jev.calibratedOn). */
+export function jevCalibratedOn() {
+  return jevThresholdsCfg().calibratedOn || _modelsCfg.jev?.calibratedOn || null;
+}
+
+const _jevModelsSeen = new Set();
+/**
+ * Chame com o modelo RESOLVIDO de cada resposta do Jev: avisa UMA vez por snapshot diferente do
+ * calibratedOn — os limiares calibrados podem não valer mais (o alias do Jev mudou de snapshot).
+ * Devolve true quando o modelo bate (ou não há calibração registrada).
+ */
+export function noteJevModel(model) {
+  const want = jevCalibratedOn();
+  const got = String(model || '');
+  if (!want || !got || got === want) return true;
+  if (!_jevModelsSeen.has(got)) {
+    _jevModelsSeen.add(got);
+    warn(`jev: resposta do snapshot ${got}, mas os limiares foram calibrados em ${want} — recalibre (eval/jev) se a qualidade mudar`);
+  }
+  return false;
+}
+
+const DEFAULT_MODEL = MODELS.pro;
+const DEFAULT_EFFORT = 'xhigh';
+
+function loadModelsConfig() {
+  const p = path.join(ROOT, 'config', 'models.json');
+  try {
+    return JSON.parse(readFileSync(p, 'utf8'));
+  } catch {
+    return {};
+  }
+}
+// linkSelector -> LINK_SELECTOR (sufixo das chaves de env)
+const envKeyOf = (stage) => stage.replace(/[A-Z]/g, (m) => `_${m}`).toUpperCase();
+
+function resolveStage(stage, cfg) {
+  const fileDef = cfg.default || {};
+  const fileStage = (cfg.stages && cfg.stages[stage]) || {};
+  const ek = envKeyOf(stage);
+  // Precedência: env específico > arquivo(etapa) > env default > arquivo(default) > hardcoded.
+  // CLASSIFY_MODEL/CLASSIFY_EFFORT seguem aceitos como alias legado da etapa classify.
+  const model =
+    process.env[`LLM_MODEL_${ek}`] ||
+    (stage === 'classify' ? process.env.CLASSIFY_MODEL : '') ||
+    fileStage.model ||
+    process.env.LLM_DEFAULT_MODEL ||
+    fileDef.model ||
+    DEFAULT_MODEL;
+  let effort =
+    process.env[`LLM_EFFORT_${ek}`] ||
+    (stage === 'classify' ? process.env.CLASSIFY_EFFORT : '') ||
+    fileStage.effort ||
+    process.env.LLM_DEFAULT_EFFORT ||
+    fileDef.effort ||
+    DEFAULT_EFFORT;
+  if (effort === 'max') effort = 'xhigh'; // DeepSeek V4 rejeita "max" (400); callJSON também protege
+  // Teto de tokens de SAÍDA (opcional): backstop de custo p/ o Gemini (saída a US$ 3,75/M). Só entra
+  // no objeto quando definido — quem compara {model, effort} por igualdade segue igual.
+  const maxTokens = Number(process.env[`LLM_MAX_TOKENS_${ek}`] || fileStage.maxTokens || 0);
+  return Number.isFinite(maxTokens) && maxTokens > 0 ? { model, effort, maxTokens: Math.floor(maxTokens) } : { model, effort };
+}
+
+export const STAGE_MODELS = Object.fromEntries(STAGE_KEYS.map((s) => [s, resolveStage(s, _modelsCfg)]));
+
+/**
+ * {model, effort, maxTokens?} resolvido para uma etapa CHAT do pipeline (default:
+ * deepseek/deepseek-v4-flash-0731 + xhigh). O effort sai CLAMPADO p/ a allow-list da família do modelo
+ * (jev-core clampEffort: 'max' nunca passa; o Gemini não aceita xhigh) — etapas Jev não passam por aqui.
+ */
+export function stageModel(stage) {
+  const base = STAGE_MODELS[stage] || { model: DEFAULT_MODEL, effort: DEFAULT_EFFORT };
+  // O modelo resolve pelo provedor ATIVO: identidade no openrouter, slug direto no deepseek
+  // (translateModel; STAGE_MODELS continua guardando o slug OpenRouter do config/models.json).
+  const model = translateModel(base.model);
+  const out = { model, effort: clampEffort(model, base.effort) ?? base.effort };
+  if (base.maxTokens) out.maxTokens = base.maxTokens;
+  return out;
+}
+
+/**
+ * Modelo por FACETA da classificação (o estágio mais caro): models.json pode ter uma chave
+ * "classify:<faceta>" (ou env LLM_MODEL_CLASSIFY_<FACETA>) p/ escolher o modelo por faceta. Só as
+ * facetas CORE (domain, topic-technology) herdam a etapa base 'classify' (effort high); as outras 7
+ * têm override medium (classificação = tarefa de vocabulário fixo, small-output → medium basta).
+ */
+export function classifyFacetModel(facetName) {
+  const fileStage = _modelsCfg.stages && _modelsCfg.stages[`classify:${facetName}`];
+  const ek = `CLASSIFY_${String(facetName).replace(/[^a-z0-9]+/gi, '_').toUpperCase()}`;
+  const model = process.env[`LLM_MODEL_${ek}`] || (fileStage && fileStage.model);
+  let effort = process.env[`LLM_EFFORT_${ek}`] || (fileStage && fileStage.effort);
+  if (!model && !effort) return stageModel('classify'); // sem override: etapa base (já traduzida)
+  const base = stageModel('classify');
+  effort = effort || base.effort;
+  if (effort === 'max') effort = 'xhigh'; // DeepSeek V4 rejeita "max"
+  // Traduz o modelo final p/ o provider ativo (env com slug direto passa inalterado; base.model
+  // já vem traduzido de stageModel e translateModel é idempotente).
+  const finalModel = translateModel(model || base.model);
+  return { model: finalModel, effort: clampEffort(finalModel, effort) ?? effort };
+}
+
+// ---- classificação multi-faceta (pós-processamento) ----
+// Aliases legados da etapa classify (usados por classify.js para logar/persistir model_used).
+export const CLASSIFY_MODEL = STAGE_MODELS.classify.model;
+export const CLASSIFY_EFFORT = STAGE_MODELS.classify.effort;
+// Teto fino de chamadas de faceta simultâneas (0 = a lane llm do governador decide).
+export const CLASSIFY_CONCURRENCY = envIntOr0('CLASSIFY_CONCURRENCY');
+// Janela de artigos processados ao mesmo tempo (cada um abre N facetas na lane llm).
+export const ARTICLE_CONCURRENCY = envIntOr0('ARTICLE_CONCURRENCY');
+// Recorte do corpo do artigo enviado a CADA agente (controle de custo de tokens). Título + início
+// do corpo já bastam p/ atribuir tags do vocabulário fixo; corpo inteiro só inflava o custo.
+export const CLASSIFY_MAX_CHARS = Number(process.env.CLASSIFY_MAX_CHARS || 2000);
+// Hook pós-crawl: classifica os novos artigos ao fim do `crawl` (desligue com =false ou --no-classify).
+export const CLASSIFY_AFTER_CRAWL = process.env.CLASSIFY_AFTER_CRAWL !== 'false';
+
+// ---- resumos PT-BR (pós-processamento) ----
+// 1 chamada/artigo (Flash high): título + resumo em português do Brasil. `content` segue original.
+export const SUMMARIZE_CONCURRENCY = envIntOr0('SUMMARIZE_CONCURRENCY');
+export const SUMMARIZE_MAX_CHARS = Number(process.env.SUMMARIZE_MAX_CHARS || 12000);
+// Hook pós-crawl: gera os resumos ao fim do crawl (desligue com =false ou --no-summarize).
+export const SUMMARIZE_AFTER_CRAWL = process.env.SUMMARIZE_AFTER_CRAWL !== 'false';
+// Guarda de idioma do summarize (default ON): title_pt/summary_pt com texto CJK (Han/kana/
+// hangeul — o Flash às vezes ecoa o idioma do artigo; 11/188 em chinês na captura 2026-08-14)
+// disparam 1 re-try com reforço e, persistindo, o THROW deixa a ficha NULL (re-resumida no
+// próximo run). =false restaura o comportamento antigo (persiste o que o modelo devolver).
+export const SUMMARIZE_LANG_GUARD = process.env.SUMMARIZE_LANG_GUARD !== 'false';
+
+// ---- buscador web (`ncrawl web`) ----
+// Servidor local do buscador React (zero-build). Só escuta em loopback por padrão: a base é
+// pessoal e a API não tem auth — exponha em rede consciente via NC_WEB_HOST.
+export const WEB_PORT = Number(process.env.NC_WEB_PORT || 8477);
+export const WEB_HOST = process.env.NC_WEB_HOST || '127.0.0.1';
+
+// ---- busca na base ----
+// Modo A (exaustivo): 50 chamadas Flash simultâneas julgando CADA artigo vs a consulta.
+export const SEARCH_FLASH_CONCURRENCY = envIntOr0('SEARCH_FLASH_CONCURRENCY');
+// Recorte do corpo enviado por artigo no modo A (controle de custo a 50x).
+export const SEARCH_MAX_CHARS = Number(process.env.SEARCH_MAX_CHARS || 8000);
+// Guard de custo: acima disto de artigos, o modo A exige --yes (evita varredura cara acidental).
+export const SEARCH_MODE_A_CONFIRM = Number(process.env.SEARCH_MODE_A_CONFIRM || 200);
+
+// ---- busca IA da web UI (soft em lote / hard por artigo) ----
+// Soft: 1 chamada Flash julga um LOTE de artigos (título+resumo) de uma vez.
+export const SEARCH_BATCH_SIZE = Number(process.env.SEARCH_BATCH_SIZE || 40);
+// Lotes simultâneos (0 = a lane llm do governador decide).
+export const SEARCH_BATCH_CONCURRENCY = envIntOr0('SEARCH_BATCH_CONCURRENCY');
+// Guard da soft (barata: ~n/40 chamadas): só exige confirmação em escopos muito grandes.
+export const SEARCH_SOFT_CONFIRM = Number(process.env.SEARCH_SOFT_CONFIRM || 4000);
+// Teto de itens devolvidos ao navegador numa busca IA (os contadores seguem com o total real).
+export const SEARCH_WEB_MAX_ITEMS = Number(process.env.SEARCH_WEB_MAX_ITEMS || 500);
+// Pré-filtro LÉXICO (FTS5/BM25): quando o escopo é MAIOR que isto, o LLM julga só o top-K candidato
+// (por BM25) em vez do acervo inteiro — corta o custo O(n) e afia a precisão. Escopo <= K = julga
+// tudo (recall pleno). Generoso de propósito: recall léxico até a metade densa (embeddings) entrar.
+export const SEARCH_CANDIDATES_K = Number(process.env.SEARCH_CANDIDATES_K || 200);
+
+// ---- embeddings locais + busca vetorial (metade DENSA do retrieval híbrido) ----
+// Modelo de embedding (transformers.js/onnxruntime, baixado 1x p/ NC_HOME/models). bge-small-en =
+// 384 dims, normalizado. RRF_K = constante da fusão Reciprocal Rank Fusion (léxico ⊕ denso).
+export const EMBED_MODEL = process.env.EMBED_MODEL || 'Xenova/bge-small-en-v1.5';
+export const EMBED_DIM = Number(process.env.EMBED_DIM || 384);
+export const EMBED_BATCH = Number(process.env.EMBED_BATCH || 64);
+export const RRF_K = Number(process.env.RRF_K || 60);
+// Rerank cross-encoder (precisão): reordena o TOPO dos candidatos RRF antes do LLM. Reranqueia só
+// o top RERANK_POOL (limita latência) e mantém RERANK_KEEP. Fail-open: modelo ausente => mantém RRF.
+export const RERANK_MODEL = process.env.RERANK_MODEL || 'Xenova/bge-reranker-base';
+export const RERANK_ENABLED = process.env.RERANK_ENABLED !== 'false';
+export const RERANK_POOL = Number(process.env.RERANK_POOL || 128);
+export const RERANK_KEEP = Number(process.env.RERANK_KEEP || RERANK_POOL);
+// Concorrência INICIAL (teto) da lane AIMD do WEBAPP estático (browser BYOK): a lane começa aqui
+// e corta ½ no 429 / recupera +1/10s sozinha (lane.js). O CLI/servidor usam o governor; isto vai
+// no meta.search do snapshot só p/ o webapp (com defaults embutidos se o export for antigo).
+export const SEARCH_WEB_SOFT_CONCURRENCY = Number(process.env.SEARCH_WEB_SOFT_CONCURRENCY || 6);
+export const SEARCH_WEB_DEEP_CONCURRENCY = Number(process.env.SEARCH_WEB_DEEP_CONCURRENCY || 10);
+// Paralelismo ESCOLHIDO pelo usuário na UI da busca (slider): teto do pool por busca. O governor
+// (lane llm) segue por baixo com AIMD (429 → ½), então este é só o TETO. default = ponto de partida
+// do slider; ceiling = máximo que o slider oferece (OpenRouter não tem cap de plataforma em modelo
+// pago — o teto só evita thrash de 429). O servidor CLAMPA a [1, ceiling] o valor recebido.
+export const SEARCH_UI_CONCURRENCY_DEFAULT = Number(process.env.SEARCH_UI_CONCURRENCY_DEFAULT || 8);
+export const SEARCH_UI_CONCURRENCY_CEILING = Number(process.env.SEARCH_UI_CONCURRENCY_CEILING || 24);
+
+// ---- export web (snapshot estático do webapp, `ncrawl export --format web`) ----
+// Alvo de bytes de cada contents.partN.json em MB. O GitHub REJEITA blobs > 100 MB no push
+// (GH001) e o contents.json único passou disso no acervo cheio — o export fatia o mapa id→content
+// em partes determinísticas bem abaixo do limite (default 85 deixa folga). Um artigo isolado pode
+// estourar o alvo e vai sozinho numa parte; acima do teto duro (95 MB) o export FALHA (fail-closed,
+// ver export-web.js). Env malformado/NaN/não-positivo cai no default — um NaN aqui devolveria o
+// particionamento inteiro para um arquivo gigante sem aviso.
+const PART = Number(process.env.EXPORT_WEB_PART_MB || 85);
+export const EXPORT_WEB_PART_MB = Number.isFinite(PART) && PART > 0 ? PART : 85;
+
+// ---- deploy do site (ncrawl deploy) ----
+// Site em produção: a Vercel publica o que está commitado em DEPLOY_BRANCH (Git integration, Root
+// Directory webapp/). O deploy CONFIRMA a publicação lendo o snapshot NO AR (SITE_URL + META_PATH)
+// e comparando o `generatedAt` com o do HEAD pós-push — é o único sinal de "está no ar" que não
+// exige credencial da Vercel. Espera até DEPLOY_WAIT_MS, sondando a cada DEPLOY_POLL_MS.
+export const SITE_URL = (process.env.NC_SITE_URL || 'https://newsletter-crawler.vercel.app').replace(/\/+$/, '');
+export const SITE_META_PATH = process.env.NC_SITE_META_PATH || '/data/meta.json';
+export const DEPLOY_BRANCH = process.env.NC_DEPLOY_BRANCH || 'main';
+export const DEPLOY_WAIT_MS = Number(process.env.DEPLOY_WAIT_MS || 300000);
+export const DEPLOY_POLL_MS = Number(process.env.DEPLOY_POLL_MS || 5000);
+
+// sources.json do USUÁRIO mora em NC_HOME (o `ncrawl add`/assistente grava aqui). É semeado 1x a
+// partir do default versionado do repo, para não perder as fontes que já vêm no projeto.
+export const DEFAULT_SOURCES_PATH = path.join(ROOT, 'config', 'sources.json');
+export const SOURCES_PATH = path.join(NC_HOME, 'sources.json');
+seedFile(SOURCES_PATH, DEFAULT_SOURCES_PATH);
+
+export function loadSources() {
+  try {
+    const raw = JSON.parse(readFileSync(SOURCES_PATH, 'utf8'));
+    return Array.isArray(raw.sources) ? raw.sources : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Persiste (upsert por URL normalizada) uma fonte no sources.json do usuário (NC_HOME por
+ * default), para ela ficar PERMANENTE: aparece no seletor da UI e é re-semeada a cada crawl.
+ * `configPath` é injetável p/ teste. Retorna { added, total }.
+ */
+export function addSourceToConfig({ url, name, type, maxIndexPages }, configPath = SOURCES_PATH) {
+  let data = { sources: [] };
+  try {
+    const raw = JSON.parse(readFileSync(configPath, 'utf8'));
+    if (raw && Array.isArray(raw.sources)) data = raw;
+  } catch {
+    /* arquivo ausente/ inválido: começa do zero */
+  }
+  const entry = {};
+  if (name) entry.name = name;
+  entry.url = url;
+  if (type) entry.type = type;
+  if (maxIndexPages != null) entry.maxIndexPages = Number(maxIndexPages);
+
+  const key = normalizeUrl(url);
+  const i = data.sources.findIndex((s) => normalizeUrl(s.url) === key);
+  if (i >= 0) data.sources[i] = { ...data.sources[i], ...entry };
+  else data.sources.push(entry);
+  writeFileSync(configPath, JSON.stringify(data, null, 2) + '\n');
+  return { added: i < 0, total: data.sources.length };
+}
+
+/**
+ * REMOVE (descadastra) uma fonte do sources.json do usuário, por URL normalizada. É o par do
+ * addSourceToConfig: sem isso, uma fonte apagada do banco voltaria no próximo crawl (o seed
+ * re-semeia do JSON). Idempotente e fail-open (arquivo ausente/ inválido = nada a remover).
+ * `configPath` é injetável p/ teste. Retorna { removed, total }.
+ */
+export function removeSourceFromConfig(url, configPath = SOURCES_PATH) {
+  let data = { sources: [] };
+  try {
+    const raw = JSON.parse(readFileSync(configPath, 'utf8'));
+    if (raw && Array.isArray(raw.sources)) data = raw;
+  } catch {
+    return { removed: false, total: 0 }; // sem arquivo/ inválido: nada a remover
+  }
+  const key = normalizeUrl(url);
+  const before = data.sources.length;
+  data.sources = data.sources.filter((s) => normalizeUrl(s.url) !== key);
+  const removed = data.sources.length < before;
+  if (removed) writeFileSync(configPath, JSON.stringify(data, null, 2) + '\n');
+  return { removed, total: data.sources.length };
+}
+
+// Vocabulário controlado da classificação. Lança se ausente/ inválido (a classificação
+// EXIGE o vocabulário); chamado de forma preguiçosa por taxonomy.js para não quebrar
+// `npm run status`, que importa o módulo mas não classifica.
+export function loadTaxonomy() {
+  const p = path.join(ROOT, 'config', 'taxonomy.json');
+  return JSON.parse(readFileSync(p, 'utf8'));
+}

@@ -1,0 +1,2237 @@
+// Implementação dos comandos (sem efeito colateral ao importar) — compartilhada entre a CLI
+// (src/index.js) e a UI (src/ui/). Os comandos logam por util log/warn/errorLog, então a UI
+// captura tudo via setLogSink. As contagens vêm de getStatus() (dado), reusado pela UI.
+import { execSync } from 'node:child_process';
+import { mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import path from 'node:path';
+import {
+  stmts, wipeAll, removeSource, purgeSource, countPendingByEra, getLegacyFloor, isLegacyRow,
+} from './db.js';
+import { createBackup, pruneBackups, latestBackup } from './backup.js';
+import { writeWipeMarker, WIPE_MARKER_FILE, DATA_DIR_REL } from './restore.js';
+import {
+  BACKUP_BEFORE_DESTRUCTIVE, BACKUP_DIR,
+  ROOT, EXPORT_DIR, DB_PATH, CONCURRENCY, MAX_RETRIES, HAS_LLM, CLASSIFY_AFTER_CRAWL, SUMMARIZE_AFTER_CRAWL,
+  SEARCH_MODE_A_CONFIRM, OPENROUTER_API_KEY, DEEPSEEK_API_KEY, LLM_PROVIDER, providerInfo, ENV_PATH,
+  BUDGET_USD, MAX_PARALLEL, RAM_MAX_PCT, GOVERNOR_LLM_CAP, RAM_FREE_TARGET_PCT, CPU_FREE_TARGET_PCT,
+  AGGRESSIVE_DEFAULT, DEFAULT_SINCE, MIN_CRAWL_DATE, VERIFY_AFTER_CRAWL, VERIFY_STREAMING, JOB_TIMEOUT_MS, JOB_HARD_TIMEOUT_MS,
+  CLASSIFY_STREAMING, SUMMARIZE_STREAMING, CURATE_JOBS, ROUNDUP_TIMEOUT_MS, COST_LOG_INTERVAL_MS,
+  ENRICH_MAX_ATTEMPTS, defaultParallel, loadSources, addSourceToConfig, removeSourceFromConfig, setRuntimeKey,
+  stageModel,
+} from './config.js';
+import {
+  initGovernor, stopGovernor, setProfile, jobsCapacity, getTelemetry, getCalibration,
+} from './governor.js';
+import { beginRun, endRun, shouldStop, getBudgetState, estimateStageCallUsd } from './budget.js';
+import { processJob, enqueue, upsertSource } from './crawl.js';
+import { parseSinceSourceFlag, resolveSourceFloor, applyPendingCeiling } from './cursor.js';
+import { detectSourceType } from './detect-type.js';
+import { exportWebSnapshot } from './export-web.js';
+import { exportPublicApi } from './export-api.js';
+import { runDeploy, DeployError } from './deploy.js';
+import { reextractTargets, selectReextractTargets, REEXTRACT_DEFAULT_LIMIT } from './reextract.js';
+import { classifyPending, classifyArticleRow } from './classify.js';
+import { getFacets } from './taxonomy.js';
+import { summarizePending, summarizeArticleRow } from './summarize.js';
+import { verifyPending, verifyArticleRow, recleanSuspects } from './verify.js';
+import { runSearch, getSearchProgress } from './search.js';
+import { buildAuditReport, renderAudit } from './audit.js';
+import { closeBrowser, isDeadTargetError } from './fetch.js';
+import { closeParsePool } from './parse-pool.js';
+import { logEvent, flushEvents } from './events.js';
+import { createJobClock } from './deadline.js';
+import {
+  progressReset, progressSnapshot, sourceSeen, sourceListingDone, bump, inStage, progressJobsBase,
+} from './progress.js';
+import { runEventsReset, emitRunEvent, runEventsSnapshot } from './run-events.js';
+import { startWebServer } from './web.js';
+import { probeProviderKey, providerInfoFor, upsertEnvVar, maskKey } from './keys.js';
+import {
+  slugify, normalizeUrl, parseDate, hostOf, log, warn, errorLog, debug, hasLogSink,
+} from './util.js';
+
+// Re-export p/ a UI importar de um lugar só (igual getStatus).
+export { getSearchProgress };
+
+/** Artigo completo por id (SELECT a.* + source_name) p/ a preview da TUI. Síncrono e barato. */
+export function getArticle(id) {
+  return stmts.webGetArticle.get(id) ?? null;
+}
+
+/**
+ * Deadline por job: corre `promise` contra um timeout de `ms`; estourou, REJEITA com
+ * code JOB_TIMEOUT (o dispatch mantém a ficha com o blurb e marca "enriquecer depois"). A
+ * promise abandonada segue rodando ao fundo, mas suas escritas são idempotentes
+ * (INSERT OR IGNORE / UPDATE), então uma conclusão tardia é inofensiva. ms<=0 desliga.
+ * Exportado p/ teste (padrão do repo, como createBreaker/createHostGate).
+ */
+export function withTimeout(promise, ms) {
+  if (!ms || ms <= 0) return promise;
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => {
+      const e = new Error(`job excedeu o deadline de ${ms}ms`);
+      e.code = 'JOB_TIMEOUT';
+      reject(e);
+    }, ms);
+    t.unref?.();
+    promise.then(
+      (v) => { clearTimeout(t); resolve(v); },
+      (err) => { clearTimeout(t); reject(err); },
+    );
+  });
+}
+
+/** Telemetria viva (governador + orçamento + progresso da run) p/ o painel da UI pollar. */
+export function getRunTelemetry() {
+  return { governor: getTelemetry(), budget: getBudgetState(), progress: progressSnapshot() };
+}
+
+/** Linha periódica de progresso do CLI (a TUI tem o painel; isto cobre o `npm run crawl` puro). */
+function cliProgressLine() {
+  const p = progressSnapshot();
+  if (!p.active) return null;
+  const f = getStatus().frontier;
+  const c = p.counts;
+  const novos = (c.salvos || 0) + (c.enriquecidos || 0);
+  const parts = [
+    `fontes ${p.sourcesListingDone}/${p.sourcesTotal}`,
+    `artigos +${novos}${c.mantidosBlurb ? ` (+${c.mantidosBlurb} blurb)` : ''}`,
+    `fila ${f.pending}p/${f.in_progress}a/${f.done}d/${f.failed}x`,
+  ];
+  // Ritmo + ETA: jobs em estado terminal na run (delta de done+failed sobre a base pós-seed)
+  // + os EM VOO agora = "processados"; taxa = terminais ÷ minutos; fila restante (pending +
+  // em voo) ÷ taxa = "falta ~T min". O ritmo recalibra a cada linha (bursts de falhas rápidas
+  // sobem, caudas de deadline de 90s derrubam) — é estimativa, não promessa.
+  if (p.jobsBase && p.startedAt) {
+    const elapsedMin = Math.max((Date.now() - p.startedAt) / 60_000, 0.2);
+    const terminal = Math.max(0, f.done - p.jobsBase.done + f.failed - p.jobsBase.failed);
+    const processed = terminal + f.in_progress;
+    const rate = terminal / elapsedMin;
+    const remaining = f.pending + f.in_progress;
+    parts.push(`processados ~${processed}`);
+    if (terminal > 0) parts.push(`ritmo ~${rate.toFixed(1)} jobs/min`);
+    if (remaining > 0) {
+      parts.push(rate > 0.05 ? `falta ~${Math.max(1, Math.ceil(remaining / rate))} min` : 'falta ~?');
+    }
+  }
+  if (c.itensCurados) parts.push(`curados +${c.itensCurados}`);
+  if (c.classificados || c.resumidos || c.verificados) {
+    parts.push(`pós ${c.verificados || 0}v/${c.resumidos || 0}r/${c.classificados || 0}c`);
+  }
+  const agora = Object.entries(p.stages).map(([k, n]) => `${n} ${k}`).join(' ');
+  if (agora) parts.push(`agora: ${agora}`);
+  if (c.estouros) parts.push(`estouros ${c.estouros}`);
+  if (p.since && p.pctGlobal != null) {
+    const semData = p.sources.filter((s) => s.pct == null).length;
+    parts.push(`alvo ${p.since}: ${p.pctGlobal}%${semData ? ` (${semData} fonte(s) s/ data)` : ''}`);
+  }
+  return `progresso: ${parts.join(' · ')}`;
+}
+
+// Rótulo PT dos vereditos no resumo (countVerifyForRun agrupa por verify_status; '(pendente)'
+// cobre o resto). Constante p/ o buildCliSummary puro não alocar a cada chamada.
+const VERDICT_LABEL = { ok: 'ok', suspect: 'suspeitos', junk: 'junk' };
+
+/**
+ * Resumo PERIÓDICO do CLI (puro p/ teste): uma linha legível a cada COST_LOG_INTERVAL_MS com a
+ * fase atual, a fila (frontier + em voo POR TIPO), artigos salvos na run, vereditos acumulados e
+ * os últimos avisos/erros da run com timestamp (do ring de run-events). Complementa o "gasto
+ * parcial" e a linha "progresso:" — o acompanhamento do CLI puro fica completo.
+ */
+export function buildCliSummary({
+  progress, frontier, inflight = 0, curating = 0, streaming = 0, verdicts = [], errors = [],
+} = {}) {
+  const c = (progress && progress.counts) || {};
+  const f = frontier || {};
+  const partes = [];
+  const fases = Object.keys((progress && progress.stages) || {});
+  partes.push(`fase ${fases.length ? fases.join(',') : '—'}`);
+  partes.push(`fila ${f.pending || 0}p/${f.in_progress || 0}a/${f.done || 0}d/${f.failed || 0}x`);
+  partes.push(`voo artigos=${inflight} curadoria=${curating} pós=${streaming}`);
+  const salvos = (c.salvos || 0) + (c.enriquecidos || 0);
+  partes.push(`salvos +${salvos}${c.mantidosBlurb ? ` (+${c.mantidosBlurb} blurb)` : ''}`);
+  if (verdicts.length) {
+    partes.push(`vereditos ${verdicts.map((v) => `${VERDICT_LABEL[v.s] || 'pend'}=${v.c}`).join(' ')}`);
+  }
+  if (errors.length) {
+    partes.push(
+      'erros ' +
+        errors
+          .map((e) => `${new Date(e.at).toISOString().slice(11, 19)} ${String(e.detail || e.kind || '').slice(0, 60)}`)
+          .join(' | '),
+    );
+  }
+  return `resumo: ${partes.join(' · ')}`;
+}
+
+/**
+ * Calibração do teto da lane llm (AIMD por 429): se o run baixou o teto abaixo do teto do
+ * perfil, persiste em NC_HOME/.env (GOVERNOR_LLM_CAP) p/ os próximos runs partirem do valor
+ * limite calibrado — "diminuir até calibrar" vira estado, não recomeça do zero a cada run.
+ * Fail-open: erro de escrita nunca derruba o run (telemetria de calibração, não dado).
+ */
+// Exportado p/ o teste de regressão do formato do log (test/commands.calib-log.test.js).
+export function persistLlmCalibration() {
+  try {
+    const cal = getCalibration();
+    if (!cal.dirty || cal.llmCap < 1) return;
+    upsertEnvVar('GOVERNOR_LLM_CAP', String(cal.llmCap));
+    log(
+      `calibração: teto llm -> ${cal.llmCap} (${cal.rateLimitEvents.llm} 429 nesta run); ` +
+        `GOVERNOR_LLM_CAP=${cal.llmCap} gravado em ${ENV_PATH} (vale p/ os próximos runs)`,
+    );
+  } catch (e) {
+    warn(`calibração: não foi possível gravar GOVERNOR_LLM_CAP (${e.message})`);
+  }
+}
+
+/**
+ * Envelope de execução com limites: valida --budget/--parallel, sobe o governador no perfil
+ * do comando e abre o run do ledger; endRun (extrato) e stopGovernor rodam SEMPRE (finally).
+ */
+async function runWithLimits({ command, flags = {}, profile }, fn) {
+  const budgetUsd = flags.budget != null ? Number(flags.budget) : BUDGET_USD;
+  if (!Number.isFinite(budgetUsd) || budgetUsd < 0) {
+    errorLog(`--budget inválido (USD >= 0, 0 = ilimitado): ${flags.budget}`);
+    process.exit(1);
+  }
+  const parallel = flags.parallel != null ? Number(flags.parallel) : undefined;
+  if (flags.parallel != null && (!Number.isFinite(parallel) || parallel < 1)) {
+    errorLog(`--parallel inválido (inteiro >= 1): ${flags.parallel}`);
+    process.exit(1);
+  }
+  // Metas de % livre (memória/CPU) como flor por-run — sobrepõem as do .env/padrão p/ esta run.
+  const pct = (name, fallback) => {
+    const v = flags[name];
+    if (v == null) return fallback;
+    const n = Number(v);
+    if (!Number.isFinite(n) || n <= 0 || n >= 100) {
+      errorLog(`--${name} inválido (0..100): ${v}`);
+      process.exit(1);
+    }
+    return n;
+  };
+  const ramFreeTargetPct = pct('ram-free-pct', RAM_FREE_TARGET_PCT);
+  const cpuFreeTargetPct = pct('cpu-free-pct', CPU_FREE_TARGET_PCT);
+  // Freio de emergência do governador: RAM crítica sustentada -> recicla o browser (o getter
+  // lazy de fetch.js relança sozinho no próximo render).
+  initGovernor({
+    parallel,
+    profile,
+    ramFreeTargetPct,
+    cpuFreeTargetPct,
+    onEmergencyBrake: () => void closeBrowser().catch(() => {}),
+  });
+  beginRun({ command, budgetUsd, args: flags });
+  let failed = false;
+  try {
+    return await fn();
+  } catch (e) {
+    failed = true;
+    throw e;
+  } finally {
+    flushEvents(); // grava o que sobrou no buffer de eventos (escritas em lote) antes de fechar
+    endRun(failed ? 'failed' : undefined);
+    persistLlmCalibration(); // 429s calibraram o teto llm? grava p/ os próximos runs
+    stopGovernor();
+  }
+}
+
+/**
+ * Contagens do banco como DADO (reusado pela UI e pelo printStatus). Os PENDENTES seguem o piso
+ * legado (decisão 8 da migração Jev): pendingVerify/pendingSummary/pendingClassif = o que as
+ * varreduras (finish/pós-crawl) processam de fato — só DESTA era; `legacy` = o que o piso deixa
+ * de fora e só entra com `--include-legacy --yes`. Assim o "rode finish" da UI não promete
+ * trabalho que o finish não faria.
+ */
+export function getStatus() {
+  const f = Object.fromEntries(stmts.countFrontierByState.all().map((r) => [r.state, r.c]));
+  const era = countPendingByEra(); // um statement: pendentes por era + resumos feitos (~2 ms)
+  const articles = era.total;
+  const classified = stmts.countClassifications.get().c;
+  const summaries = era.summaries;
+  // Gasto LLM acumulado (ledger). Aditivo e tolerante: telemetria não pode derrubar o status.
+  let spend = { totalUsd: 0, calls: 0, lastRun: null };
+  try {
+    const t = stmts.sumUsageTotal.get();
+    spend = { totalUsd: t.usd, calls: t.n, lastRun: stmts.getLastRun.get() || null };
+  } catch {
+    /* tabelas do ledger ausentes (DB antigo): segue sem gasto */
+  }
+  return {
+    spend,
+    sources: stmts.countSources.get().c,
+    pages: stmts.countPages.get().c,
+    articles,
+    selectors: stmts.countSelectors.get().c,
+    classified,
+    pendingClassif: era.jev.classify,
+    summaries,
+    pendingSummary: era.jev.summary,
+    pendingVerify: era.jev.verify,
+    legacy: {
+      floor: era.floor,
+      articles: era.legacy.articles,
+      noVerify: era.legacy.verify,
+      noSummary: era.legacy.summary,
+      noClassif: era.legacy.classify,
+      suspect: era.legacy.suspect,
+    },
+    frontier: {
+      pending: f.pending || 0,
+      in_progress: f.in_progress || 0,
+      done: f.done || 0,
+      failed: f.failed || 0,
+    },
+  };
+}
+
+/**
+ * Escopo efetivo da busca (delta vs acervo) + contagem DESSE escopo — a MESMA conta para o
+ * guard de custo do CLI e para a confirmação da TUI (que antes contava o acervo inteiro).
+ * A âncora do delta é a última run QUE TROUXE ARTIGOS (maxArticleRunId), não MAX(runs.id):
+ * buscas/verify também abrem runs, e ancorar nelas zeraria o "apenas o novo".
+ */
+export function getSearchScope(flags = {}) {
+  const latest = stmts.maxArticleRunId.get().id;
+  const all = flags.all === true || latest == null;
+  return {
+    all,
+    runId: all ? null : latest,
+    count: all ? stmts.countArticles.get().c : stmts.countArticlesByRun.get(latest).c,
+  };
+}
+
+export function printStatus() {
+  const s = getStatus();
+  log('— status —');
+  log(`sources:   ${s.sources}`);
+  log(`pages:     ${s.pages}`);
+  log(`articles:  ${s.articles}`);
+  log(`selectors: ${s.selectors}`);
+  // Pendentes por era: "desta era (Jev)" é o que finish/pós-crawl processam; "legado (não
+  // processado)" fica fora das varreduras pelo piso (só pelo portão do --include-legacy).
+  const lg = s.legacy;
+  log(`classif.:  done=${s.classified} pendentes: desta era (Jev)=${s.pendingClassif} · legado (não processado)=${lg.noClassif}`);
+  log(`resumos:   done=${s.summaries} pendentes: desta era (Jev)=${s.pendingSummary} · legado (não processado)=${lg.noSummary}`);
+  log(`verific.:  pendentes: desta era (Jev)=${s.pendingVerify} · legado (não processado)=${lg.noVerify}`);
+  if (lg.noVerify + lg.noSummary + lg.noClassif > 0) {
+    // O `finish --include-legacy` pega só os PENDENTES do legado (não os N artigos legados) — a
+    // dica cita esses números. E NÃO traz --yes: rodá-la mostra contagem × custo e o próprio
+    // portão diz a linha de confirmação (colar um `--yes` daqui gastaria sem ver a estimativa).
+    log(
+      `legado:    ${lg.noVerify} sem veredito · ${lg.noSummary} sem resumo · ${lg.noClassif} sem tags ` +
+        `(de ${lg.articles} artigo(s) com run_id NULL ou < ${lg.floor}) ficam fora das varreduras pagas — ` +
+        'ver contagem × custo: ncrawl finish --include-legacy',
+    );
+  }
+  log(`gasto LLM: US$ ${s.spend.totalUsd.toFixed(4)} em ${s.spend.calls} chamadas`);
+  log(
+    `frontier:  pending=${s.frontier.pending} in_progress=${s.frontier.in_progress} ` +
+      `done=${s.frontier.done} failed=${s.frontier.failed}`,
+  );
+  // Cursor de captura por fonte (piso da próxima coleta daquela fonte).
+  const cursors = stmts.listSources.all().filter((x) => x.cursor_date);
+  log(
+    cursors.length
+      ? `cursores:  ${cursors.map((x) => `${x.name || x.base_url}=${x.cursor_date}`).join(' · ')}`
+      : 'cursores:  (nenhum — a próxima coleta usa --since/piso mínimo)',
+  );
+}
+
+// `--sources "A,B"`: lista por vírgula (o checkbox de fontes da TUI emite isto). Cada item casa
+// por nome exato (case-insensitive) OU URL normalizada — a mesma regra do --source. Puro p/
+// teste: devolve {selected, unmatched}; sem flag (ou vazia), selected = todas as fontes.
+export function filterSeedSources(sources, flags) {
+  const list = typeof flags.sources === 'string'
+    ? flags.sources.split(',').map((x) => x.trim()).filter(Boolean)
+    : null;
+  if (!list || !list.length) return { selected: sources, unmatched: [] };
+  const matches = (s, want) =>
+    (s.name || '').toLowerCase() === want.toLowerCase() ||
+    (normalizeUrl(want) != null && normalizeUrl(want) === normalizeUrl(s.url));
+  return {
+    selected: sources.filter((s) => list.some((w) => matches(s, w))),
+    unmatched: list.filter((w) => !sources.some((s) => matches(s, w))),
+  };
+}
+
+/**
+ * A ficha recém-salva/enriquecida entra no pós-processamento em STREAMING (verify + summarize +
+ * classify pagos)? Não se sumiu, nem se é do acervo LEGADO (run_id NULL/anterior ao piso): mesma
+ * regra das varreduras. O caso real é a ficha RESTAURADA do git (run_id NULL, needs_enrich) que
+ * este crawl re-enriquece — o enrichArticle do crawl.js não passa run_id (coalesce mantém o NULL),
+ * então ela segue legado e o streaming a pula. Puro p/ teste.
+ */
+export function shouldStreamPostSave(row, floor) {
+  return Boolean(row) && !isLegacyRow(row, floor);
+}
+
+export async function cmdCrawl(flags) {
+  return runWithLimits({ command: 'crawl', flags, profile: 'crawl' }, () => crawlRun(flags));
+}
+
+async function crawlRun(flags) {
+  if (!HAS_LLM) {
+    log(`AVISO: ${providerInfo().keyVar} ausente — só o caminho estático/cache roda; sem derivação de seletor.`);
+  }
+
+  // Resume: jobs que ficaram travados voltam para a fila.
+  const reset = stmts.resetInProgress.run();
+  if (reset.changes) log(`resume: ${reset.changes} jobs in_progress -> pending`);
+
+  // Marca d'água do delta: REUSA o run do ledger (aberto por runWithLimits/beginRun). Antes
+  // havia um segundo INSERT aqui (startDeltaRun) — duplicava a linha de runs a cada crawl e
+  // crashava em DBs criados pelo branch robot-bypass (runs.command NOT NULL). Fallback
+  // defensivo só p/ o caso de o ledger não ter conseguido abrir o run.
+  let runId = getBudgetState().runId;
+  if (runId == null) {
+    try {
+      runId = stmts.startDeltaRun.get().id;
+    } catch (e) {
+      warn(`runs: sem marca d'água do delta (${e.message}) — artigos desta run ficarão sem run_id`);
+    }
+  }
+
+  // --since <YYYY-MM-DD|ISO>: piso de data (coleta do mais novo até esse piso e para). Aplica
+  // à data da issue E do artigo. Data inválida aborta (em vez de ignorar o filtro silenciosamente).
+  // Parseado ANTES do seed p/ o rastreador de progresso nascer já com a data-alvo (% por fonte).
+  const sinceRaw = typeof flags.since === 'string' ? flags.since : (DEFAULT_SINCE || null);
+  let sinceDate = sinceRaw ? parseDate(sinceRaw) : null;
+  if (sinceRaw && !sinceDate) {
+    errorLog(`--since inválido (use ISO, ex.: 2026-06-25): ${sinceRaw}`);
+    process.exit(1);
+  }
+  // Piso mínimo DURO (MIN_CRAWL_DATE): --since anterior a ele é avisado e clampado (uma flag
+  // mais recente vence — mais restritivo); sem flag E sem CRAWLER_SINCE, o piso vira o default.
+  // Garante que SEMPRE há um piso: nada de varrer o arquivo inteiro de um índice Cooperpress.
+  const minDate = parseDate(MIN_CRAWL_DATE);
+  if (sinceDate && sinceDate < minDate) {
+    warn(`--since ${sinceRaw} anterior ao piso mínimo ${MIN_CRAWL_DATE} — clampado p/ ${MIN_CRAWL_DATE}`);
+    sinceDate = minDate;
+  } else if (!sinceDate) {
+    sinceDate = minDate; // sem flag/env: piso mínimo da casa
+  }
+  const origem =
+    typeof flags.since === 'string' ? 'flag' : process.env.CRAWLER_SINCE ? 'CRAWLER_SINCE' : 'piso mínimo';
+  log(
+    typeof flags.since === 'string'
+      ? `--since (flag): ${sinceDate.toISOString()} — vence o cursor de TODAS as fontes`
+      : `--since de fallback (${origem}): ${sinceDate.toISOString()} — vale só p/ fonte sem cursor/derivado`,
+  );
+  progressReset({ sinceDate });
+  runEventsReset(); // zera o feed de MARCOS do painel (o ring é global ao processo, como o progresso)
+
+  // ---- Cursor de captura POR FONTE (src/cursor.js) -------------------------------
+  // Cada fonte guarda a data do item mais novo já capturado; a coleta seguinte repete esse piso
+  // (confia na captura passada) em vez de varrer de novo. `--since` explícito vence o cursor (run
+  // de recuperação); `--since-source "Nome=AAAA-MM-DD"` força UMA fonte; `--reset-cursor [fonte]`
+  // zera o cursor (vazio = todas), e o `purge` zera automaticamente.
+  const explicitSinceFlag = typeof flags.since === 'string' ? sinceDate : null;
+  const sinceOverrides = parseSinceSourceFlag(flags['since-source']);
+  const overridesUsados = new Set();
+  if (typeof flags['since-source'] === 'string' && !sinceOverrides.size) {
+    warn('--since-source sem par válido (use "Nome=AAAA-MM-DD[,Outro=...]") — ignorado');
+  }
+  if (flags['reset-cursor'] !== undefined) {
+    const alvo = typeof flags['reset-cursor'] === 'string' ? flags['reset-cursor'].trim() : '';
+    if (!alvo) {
+      const n = stmts.resetAllSourceCursors.run().changes;
+      log(`cursor: ${n} fonte(s) resetada(s) (--reset-cursor sem alvo = todas)`);
+    } else {
+      const rows = stmts.listSources.all().filter(
+        (s) =>
+          (s.name || '').toLowerCase() === alvo.toLowerCase() ||
+          (s.base_url || '').toLowerCase().includes(alvo.toLowerCase()) ||
+          (s.name || '').toLowerCase().includes(alvo.toLowerCase()),
+      );
+      if (!rows.length) warn(`--reset-cursor: nenhuma fonte casa com "${alvo}"`);
+      for (const r of rows) {
+        stmts.resetSourceCursor.run(r.id);
+        log(`cursor: ${r.name || r.base_url} resetado`);
+      }
+    }
+  }
+  // Piso efetivo por source_id, resolvido no seed (cursor + derivado) e lido no dispatch.
+  const floorBySource = new Map();
+  // Fontes semeadas nesta run: o cursor delas é re-avançado no FIM (a listagem pode terminar
+  // antes dos itens que ela mesma descobriu serem salvos — ver o bloco pós-loop).
+  const seededSourceIds = new Set();
+
+  // Re-crawl incremental: por padrão re-visita as listagens das fontes a cada execução (só enfileira
+  // o novo; a dedup de artigo impede re-baixar o existente). `--no-refresh` desliga a re-visita.
+  const noRefresh = flags['no-refresh'] === true;
+
+  // Seleção de fonte ao executar: `--sources "A,B"` (lista por vírgula — o checkbox da TUI)
+  // tem PRECEDÊNCIA; `--source "<nome exato>"` (ou a URL) seleciona UMA fonte; `--only <substr>`
+  // casa por substring no nome/url. Sem nenhum, semeia todas do config.
+  const only = typeof flags.only === 'string' ? flags.only.toLowerCase() : null;
+  const sourceExact = typeof flags.source === 'string' ? flags.source.toLowerCase() : null;
+  const hasSourcesList = typeof flags.sources === 'string' && flags.sources.trim() !== '';
+  if (hasSourcesList && (only || sourceExact)) {
+    warn('--sources tem precedência: ignorando --source/--only');
+  }
+  const { selected, unmatched } = filterSeedSources(loadSources(), flags);
+  for (const w of unmatched) warn(`--sources: nenhuma fonte casa com "${w}"`);
+  for (const s of selected) {
+    if (!hasSourcesList) {
+      if (only && !`${s.name || ''} ${s.url}`.toLowerCase().includes(only)) continue;
+      if (
+        sourceExact &&
+        (s.name || '').toLowerCase() !== sourceExact &&
+        normalizeUrl(s.url) !== normalizeUrl(flags.source)
+      ) {
+        continue;
+      }
+    }
+    const src = upsertSource(s);
+    sourceSeen(src.id, src.name || s.name || hostOf(s.url)); // painel: fontes x/y + % por data
+    seededSourceIds.add(src.id);
+    // Piso efetivo DESTA fonte: override (--since-source) > --since global > cursor > derivado
+    // (MAX do que já temos dela, cobre pós-restore sem cursor) > piso mínimo. Uma flag/cursor mais
+    // NOVO é mais restritivo e vence.
+    const override = sinceOverrides.get((src.name || s.name || '').toLowerCase()) ?? null;
+    if (override) overridesUsados.add((src.name || s.name || '').toLowerCase());
+    const derivado = stmts.maxPublishedForSource.get(src.id)?.d ?? null;
+    let { date: floorDate, origem: floorOrigem } = resolveSourceFloor({
+      explicitSince: explicitSinceFlag,
+      override,
+      cursor: src.cursor_date ?? null,
+      derived: derivado,
+      minDate,
+      maxDate: new Date(), // cursor/derivado no FUTURO = scrape errado; nunca deixa pular o intervalo
+    });
+    // TRABALHO INACABADO manda: o piso nunca passa por cima de backlog pending/in_progress da fonte.
+    // Sem isso, uma captura parcial (`--max-articles`, budget, Ctrl+C, deadline) deixaria roundups
+    // abaixo do piso, marcados `done` no skip — e o `enqueue`/`isUrlKnown` nunca os trariam de volta.
+    // Job pendente SEM data não prova cobertura → a fonte cai no piso mínimo. O teto vale também
+    // quando o piso veio de flag explícita: rebaixar varre mais; o alternativo seria perder o backlog.
+    const pend = stmts.oldestUnfinishedForSource.get(src.id) ?? { d: null, undated: 0 };
+    const capped = applyPendingCeiling(
+      { date: floorDate, origem: floorOrigem },
+      { oldest: pend.d ?? null, undated: pend.undated ?? 0 },
+      { minDate },
+    );
+    floorDate = capped.date;
+    floorOrigem = capped.origem;
+    const sufixo = capped.limitadoPor === 'backlog' ? ' · limitado por pendências' : '';
+    if (floorDate) floorBySource.set(src.id, floorDate);
+    log(`piso ${src.name || s.url}: ${floorDate ? floorDate.toISOString().slice(0, 10) : '—'} (${floorOrigem}${sufixo})`);
+    const seeded = enqueue(s.url, 'listing', null, src.id, 0);
+    if (seeded) log(`seed: ${s.url} (type=${src.type})`);
+    else if (!noRefresh) {
+      const r = stmts.refreshListing.run(src.base_url); // base_url normalizada = url no frontier
+      if (r.changes) log(`refresh: ${s.url} re-enfileirado (re-visita a listagem)`);
+    }
+    // "Enriquecer depois": re-ativa jobs de itens que ficaram só com o blurb (needs_enrich=1),
+    // inclusive os cortados por deadline num run anterior — o dado ganha o corpo do alvo agora.
+    // Teto por alvo (ENRICH_MAX_ATTEMPTS): a falha do run anterior conta UMA tentativa; quem
+    // estourou o teto mantém o blurb (fail-open) e não re-falha esta run.
+    if (ENRICH_MAX_ATTEMPTS > 0) stmts.bumpFailedEnrichAttempts.run(src.id);
+    const re = stmts.requeueNeedsEnrichForSource.run(src.id, ENRICH_MAX_ATTEMPTS > 0 ? ENRICH_MAX_ATTEMPTS : Number.MAX_SAFE_INTEGER);
+    if (re.changes) log(`enriquecer: ${re.changes} item(ns) só-blurb re-enfileirado(s) p/ pegar o corpo do alvo`);
+    if (ENRICH_MAX_ATTEMPTS > 0) {
+      const capped = stmts.countEnrichAtCapForSource.get(src.id, ENRICH_MAX_ATTEMPTS).c;
+      if (capped) log(`enriquecer: ${capped} item(ns) no teto de tentativas (${ENRICH_MAX_ATTEMPTS}) — mantidos com o blurb do agregador`);
+    }
+  }
+
+  // --since-source que não casou com NENHUMA fonte selecionada não pode sumir em silêncio (nome
+  // errado, URL em vez de nome): avisa como o --sources faz.
+  for (const nome of sinceOverrides.keys()) {
+    if (!overridesUsados.has(nome)) {
+      warn(`--since-source: nenhuma fonte selecionada casa com "${nome}"`);
+    }
+  }
+  // Progresso por DATA: com piso POR FONTE não existe um alvo único — usa o MAIS ANTIGO (a fonte
+  // mais atrasada é quem define quanto ainda falta andar). Só re-ancora se ele for mais antigo que
+  // o piso de fallback, senão a barra regride sem motivo.
+  const pisoMaisAntigo = [...floorBySource.values()].sort((a, b) => a - b)[0] ?? null;
+  if (pisoMaisAntigo && pisoMaisAntigo < sinceDate) {
+    debug(`progresso: alvo por data ajustado p/ o piso mais antigo (${pisoMaisAntigo.toISOString().slice(0, 10)})`);
+    progressReset({ sinceDate: pisoMaisAntigo });
+  }
+
+  // Agressivo é o DEFAULT (CRAWLER_AGGRESSIVE=false ou --no-aggressive desligam por completo;
+  // --aggressive força mesmo com env desligada). Páginas de desafio continuam descartadas.
+  const aggressive =
+    flags['no-aggressive'] === true ? false : flags.aggressive === true ? true : AGGRESSIVE_DEFAULT;
+  const opts = {
+    maxPages: flags['max-pages'] ? Number(flags['max-pages']) : Infinity,
+    sinceDate,
+    aggressive,
+    runId,
+  };
+  if (opts.aggressive) {
+    log('modo agressivo ATIVO (default): ignorando robots.txt + User-Agent de navegador real (--no-aggressive p/ modo educado)');
+  } else {
+    log('modo educado: respeitando robots.txt e UA de bot');
+  }
+  const maxArticles = flags['max-articles'] ? Number(flags['max-articles']) : Infinity;
+
+  // Capacidade DINÂMICA do loop: o governador redimensiona as lanes fetch+render pela RAM;
+  // env CONCURRENCY > 0 vira teto duro por cima. Sem gate p-limit: o próprio loop é o gate
+  // (as lanes de fetch/render dentro do job limitam o trabalho pesado).
+  const capacity = () =>
+    CONCURRENCY > 0 ? Math.min(CONCURRENCY, jobsCapacity()) : jobsCapacity();
+  // Curadoria (listing/roundup) tem POOL PRÓPRIO: a fase de LLM longa não deve ocupar a capacity
+  // de fetch/render dos artigos (senão uma curadoria lenta trava o fetch). Default derivado do
+  // porte da máquina; CURATE_JOBS > 0 é teto duro por env.
+  const curateCapacity = () =>
+    CURATE_JOBS > 0 ? CURATE_JOBS : Math.max(2, Math.ceil(MAX_PARALLEL / 4));
+  const inflight = new Set(); // jobs de ARTIGO (limitados por fetch+render)
+  const curating = new Set(); // jobs de listing/roundup (pool próprio; fase LLM longa)
+  const streaming = new Set(); // pós-save: verify+summarize+classify (lane llm; NÃO conta na capacity)
+  let processedArticles = 0;
+  let budgetRequeued = 0;
+  let timedOut = 0;
+
+  // STREAMING pós-save: logo após salvar/enriquecer uma ficha, roda verify + summarize + classify
+  // na FOLGA da lane llm (cada um idempotente, engolindo erro/orçamento). Rastreado num set à parte
+  // p/ o loop esperar sem roubar capacidade de fetch/render. Os sweeps pós-crawl seguem como rede
+  // de segurança (delta-only) p/ o que sobrar (blurb-only nunca enriquecido, pulados por orçamento).
+  const track = (task) => {
+    const p = task().finally(() => streaming.delete(p));
+    streaming.add(p);
+  };
+  // Piso legado lido UMA vez por crawl (é fixo: o boot/reset é quem o move).
+  const legacyFloor = getLegacyFloor();
+  const streamPostSave = (savedUrl) => {
+    if (!(HAS_LLM && savedUrl) || shouldStop()) return;
+    const a = stmts.getArticleFullByUrl.get(savedUrl);
+    if (!shouldStreamPostSave(a, legacyFloor)) return;
+    if (VERIFY_STREAMING && a.verify_status == null) {
+      track(() => inStage('verificação', async () => {
+        try {
+          await verifyArticleRow(a, { runId });
+          bump('verificados');
+        } catch (e) {
+          if (e?.code !== 'BUDGET_EXCEEDED') debug(`verify streaming falhou (${savedUrl}): ${e.message}`);
+        }
+      }));
+    }
+    if (SUMMARIZE_STREAMING && a.summary_pt == null) {
+      track(() => inStage('resumo', async () => {
+        try {
+          await summarizeArticleRow(a);
+          bump('resumidos');
+        } catch (e) {
+          if (e?.code !== 'BUDGET_EXCEEDED') debug(`summarize streaming falhou (${savedUrl}): ${e.message}`);
+        }
+      }));
+    }
+    if (CLASSIFY_STREAMING && !stmts.getClassification.get(a.id)) {
+      track(() => inStage('classificação', async () => {
+        try {
+          await classifyArticleRow(a);
+          bump('classificados');
+        } catch (e) {
+          if (e?.code !== 'BUDGET_EXCEEDED') debug(`classify streaming falhou (${savedUrl}): ${e.message}`);
+        }
+      }));
+    }
+  };
+
+  // Deadline vem do POOL (artigo = JOB_TIMEOUT_MS; curadoria = ROUNDUP_TIMEOUT_MS, default 0 = sem
+  // corte). `set` é o pool que rastreia o job (inflight p/ artigo, curating p/ listing/roundup).
+  // ARTIGO usa o relógio de TRABALHO (createJobClock): só fetch/render/parse contam; espera de
+  // fila (lanes/politeness) e fases LLM ficam de fora (têm timeouts/orçamento próprios). Ao
+  // estourar, o job é ABORTADO de verdade (AbortSignal) — sem zumbi segurando lane (a causa da
+  // cascata de 100% de estouros). JOB_HARD_TIMEOUT_MS é o teto DURO de parede (rede de segurança).
+  // Cursor da fonte: avança para o item mais novo que ela JÁ tem (só avança; roda apenas quando a
+  // listagem terminou bem — falha/timeout não passam por aqui, então a janela não é perdida).
+  const advanceCursorFor = (sourceId) => {
+    const max = stmts.maxPublishedForSource.get(sourceId)?.d ?? null;
+    if (!max) return;
+    // Data futura = scrape errado: NÃO grava (senão a próxima coleta pularia o intervalo até lá).
+    if (parseDate(max) > new Date()) {
+      warn(`cursor: ${max} no futuro para a fonte ${sourceId} — ignorado`);
+      return;
+    }
+    if (stmts.advanceSourceCursor.run({ id: sourceId, date: max }).changes) {
+      debug(`cursor: fonte ${sourceId} -> ${max}`);
+    }
+  };
+
+  const dispatch = (job, set, deadline) => {
+    const p = (async () => {
+      const clock = job.kind === 'article' && deadline > 0 ? createJobClock(deadline) : null;
+      // Curadoria/listing: deadline de PAREDE + AbortSignal. ANTES não havia corte algum
+      // (deadline 0 = sem corte) e um job wedged (await que nunca resolve) segurava o drain da
+      // run inteira para sempre — medido em 2026-10-09 (2 runs congeladas em curadoria). O corte
+      // aborta o trabalho em voo (fetch/LLM honram o signal) e o job volta p/ a próxima run.
+      const wall = !clock && deadline > 0 ? new AbortController() : null;
+      // Piso POR FONTE (cursor): o job usa o piso da fonte dele; sem entrada no mapa (fonte fora
+      // do seed desta run) cai no --since global.
+      const base = { ...opts, sinceDate: floorBySource.get(job.source_id) ?? opts.sinceDate };
+      const jobOpts = clock
+        ? { ...base, clock, signal: clock.signal }
+        : wall
+          ? { ...base, signal: wall.signal }
+          : base;
+      try {
+        const work = processJob(job, jobOpts);
+        let res;
+        if (clock) {
+          res = await (JOB_HARD_TIMEOUT_MS > 0 ? withTimeout(work, JOB_HARD_TIMEOUT_MS) : work);
+        } else if (wall) {
+          try {
+            res = await withTimeout(work, deadline);
+          } catch (e) {
+            wall.abort(e); // sem zumbi: derruba fetch/LLM em voo e devolve as lanes
+            throw e;
+          }
+        } else {
+          res = await work;
+        }
+        if (job.kind === 'article') processedArticles++;
+        if (job.kind === 'listing') sourceListingDone(job.source_id); // fonte: descoberta concluída
+        stmts.finish.run('done', job.url);
+        if (res?.verifyUrl) streamPostSave(res.verifyUrl); // salvou/enriqueceu -> pós-processa já
+        if (job.kind === 'listing' && job.source_id) advanceCursorFor(job.source_id); // cursor da fonte
+      } catch (e) {
+        if (e?.code === 'BUDGET_EXCEEDED') {
+          // Orçamento: devolve à fila SEM consumir retry — retomável no próximo run. O loop
+          // já parou de reivindicar (shouldStop), então não há hot-loop aqui.
+          stmts.finish.run('pending', job.url);
+          budgetRequeued++;
+          return;
+        }
+        // Job WEDGED cortado pelo deadline de parede (curadoria/listing): sem retry em run (o
+        // wedge não sara sozinho) e sem 'failed' (isUrlKnown contaria como conhecido e a issue
+        // nunca mais voltava) — apaga a linha da frontier e a próxima listagem o re-descobre.
+        if (e?.code === 'JOB_TIMEOUT' && wall) {
+          stmts.dropFrontierJob.run(job.url);
+          timedOut++;
+          bump('estouros');
+          warn(`job wedged cortado (${deadline}ms de parede) — volta na próxima run: ${job.url.slice(0, 80)}`);
+          logEvent({
+            runId, url: job.url, stage: 'job', status: 'timeout',
+            detail: { ms: deadline, kind: job.kind, wall: true },
+          });
+          emitRunEvent({ phase: 'articles', kind: 'timeout', level: 'warn', detail: job.url.slice(0, 70) });
+          return;
+        }
+        // Teto duro disparou (withTimeout) com o clock ainda vivo: aborta o trabalho em voo
+        // p/ ele não virar zumbi (é exatamente o buraco do withTimeout puro).
+        if (e?.code === 'JOB_TIMEOUT' && clock && !clock.expired()) clock.abort('hard-cap');
+        // O abort pode aflorar como erro de cancelamento (got/SDK), então o veredito de
+        // timeout vem do relógio, não só do code do erro.
+        if (e?.code === 'JOB_TIMEOUT' || clock?.expired()) {
+          timedOut++;
+          bump('estouros');
+          emitRunEvent({ phase: 'articles', kind: 'timeout', level: 'warn', detail: job.url.slice(0, 70) });
+          logEvent({
+            runId, url: job.url, stage: 'job', status: 'timeout',
+            detail: { ms: deadline, kind: job.kind, ...(clock ? clock.snapshot() : {}) },
+          });
+          const row = job.kind === 'article' ? stmts.getArticleFullByUrl.get(normalizeUrl(job.url) || job.url) : null;
+          if (row?.needs_enrich) {
+            // A ficha JÁ existe com o blurb do agregador: encerra o job (não re-tenta agora, senão
+            // trava de novo) e deixa needs_enrich=1 — o próximo crawl re-enfileira p/ enriquecer.
+            stmts.finish.run('done', job.url);
+            log(`job estourou ${deadline}ms de trabalho — ficha mantida com o blurb (enriquece depois): ${job.url.slice(0, 70)}`);
+            return;
+          }
+          // avulso/listing/roundup: sem ficha a preservar — trata como falha comum (retry/fail).
+          errorLog(`job estourou o deadline (${job.kind} ${job.url})`);
+        } else {
+          errorLog(`job falhou (${job.kind} ${job.url}): ${e.message}`);
+          if (!hasLogSink()) {
+            emitRunEvent({ phase: 'articles', kind: 'job-error', level: 'error', detail: `${e.message}`.slice(0, 80) });
+          }
+        }
+        // Alvo MORTO (DNS não resolve / conexão recusada / SSL morto): re-tentar dentro da run é
+        // inútil (mesmo resolver e socket). Item curado com blurb encerra o job com `done` e
+        // MANTÉM needs_enrich=1 — a PRÓXIMA run o re-enfileira (política ENRICH_MAX_ATTEMPTS=0:
+        // nada é aposentado) — e o log vira 1 aviso em vez de MAX_RETRIES erros + browser à toa.
+        if (e?.code !== 'JOB_TIMEOUT' && isDeadTargetError(e) && job.kind === 'article') {
+          const deadRow = stmts.getArticleFullByUrl.get(normalizeUrl(job.url) || job.url);
+          if (deadRow?.needs_enrich) {
+            warn(`alvo morto — ficha mantida com o blurb, re-tenta na próxima run: ${job.url.slice(0, 80)}`);
+            stmts.finish.run('done', job.url);
+            return;
+          }
+        }
+        const r = stmts.getRetries.get(job.url);
+        if ((r?.retries ?? 0) < MAX_RETRIES) stmts.bumpRetry.run(job.url);
+        else stmts.finish.run('failed', job.url);
+      }
+    })().finally(() => set.delete(p));
+    set.add(p);
+  };
+
+  // Custo + PROGRESSO ao vivo no CLI: timer independente do fim dos jobs (mais "tempo real" que
+  // esperar um job fechar). unref p/ não segurar o processo; só loga quando o valor mudou.
+  let lastLoggedCalls = -1;
+  let lastProgressLine = '';
+  let lastResumoLine = '';
+  const costTimer = setInterval(() => {
+    const bs = getBudgetState();
+    if (bs.calls > 0 && bs.calls !== lastLoggedCalls) {
+      lastLoggedCalls = bs.calls;
+      log(
+        `gasto parcial: US$ ${bs.spentUsd.toFixed(4)} em ${bs.calls} chamadas` +
+          `${bs.budgetUsd > 0 ? ` / teto US$ ${bs.budgetUsd.toFixed(2)}` : ''}`,
+      );
+    }
+    const line = cliProgressLine();
+    if (line && line !== lastProgressLine) {
+      lastProgressLine = line;
+      log(line);
+    }
+    // Resumo periódico: fase/fila por tipo/salvos/vereditos + últimos avisos-erros da run
+    // (ring de run-events, com timestamp). Só loga quando mudou, como as outras linhas.
+    const resumo = buildCliSummary({
+      progress: progressSnapshot(),
+      frontier: getStatus().frontier,
+      inflight: inflight.size,
+      curating: curating.size,
+      streaming: streaming.size,
+      verdicts: runId != null ? stmts.countVerifyForRun.all(runId) : [],
+      errors: runEventsSnapshot().feed
+        .filter((e) => e.level === 'warn' || e.level === 'error')
+        .slice(-3),
+    });
+    if (resumo !== lastResumoLine) {
+      lastResumoLine = resumo;
+      log(resumo);
+    }
+  }, COST_LOG_INTERVAL_MS);
+  costTimer.unref?.();
+
+  emitRunEvent({ phase: 'discovery', kind: 'phase-start', detail: 'Descoberta' });
+  // Base da fila PÓS-seed: o delta de done+failed daqui p/ frente = jobs concluídos na run
+  // (alimenta o ritmo/ETA da linha de progresso; o seed re-flipou done->pending antes).
+  {
+    const fb = Object.fromEntries(stmts.countFrontierByState.all().map((r) => [r.state, r.c]));
+    progressJobsBase(fb.done || 0, fb.failed || 0);
+  }
+  for (;;) {
+    // Artigos: limitados pela capacity de fetch+render (+ --max-articles).
+    while (processedArticles < maxArticles && !shouldStop() && inflight.size < capacity()) {
+      const job = stmts.claimNextArticle.get();
+      if (!job) break;
+      dispatch(job, inflight, JOB_TIMEOUT_MS);
+    }
+    // Curadoria: pool PRÓPRIO (não rouba a capacity dos artigos). --max-articles também trava aqui
+    // (não faz sentido curar issue nova quando o teto de artigos já foi atingido).
+    while (processedArticles < maxArticles && !shouldStop() && curating.size < curateCapacity()) {
+      const job = stmts.claimNextCurate.get();
+      if (!job) break;
+      dispatch(job, curating, ROUNDUP_TIMEOUT_MS);
+    }
+    if (inflight.size === 0 && curating.size === 0 && streaming.size === 0) break; // nada => fim
+    await Promise.race([...inflight, ...curating, ...streaming]);
+  }
+  clearInterval(costTimer);
+  await Promise.allSettled([...inflight, ...curating, ...streaming]);
+  await closeBrowser();
+  await closeParsePool(); // encerra os workers de parsing (o pós-crawl não parseia HTML)
+  if (budgetRequeued) log(`orçamento: ${budgetRequeued} jobs devolvidos à fila (retomáveis no próximo run)`);
+  if (timedOut) log(`deadline: ${timedOut} job(s) cortado(s) em ${JOB_TIMEOUT_MS}ms de TRABALHO (fila/LLM não contam; ficha mantida com o blurb; detalhe por fase no ncrawl inspect)`);
+  log('crawl concluído.');
+  emitRunEvent({ phase: 'articles', kind: 'phase-end', level: 'success', detail: `${processedArticles} artigos` });
+
+  // CURSOR POR FONTE — avanço final: o avanço no dispatch acontece quando a LISTAGEM termina, e a
+  // listagem pode terminar ANTES de os itens que ela descobriu serem salvos (os jobs de artigo
+  // correm em paralelo). Sem este passe o cursor ficava uma run atrás do que já temos (medido:
+  // AI Weekly com itens de 09/09 e cursor em 20/08). Aqui a fila já drenou: o MAX da fonte é o real.
+  for (const id of seededSourceIds) advanceCursorFor(id);
+
+  // Registra na run quantos artigos novos ela descobriu (o delta desta execução).
+  if (runId != null) {
+    const newCount = stmts.countArticlesByRun.get(runId).c;
+    stmts.finishDeltaRun.run(newCount, runId);
+    log(`run ${runId}: ${newCount} novo(s) artigo(s) desde a última execução.`);
+    emitRunEvent({ phase: 'post', kind: 'run-summary', level: 'success', detail: `${newCount} novos` });
+  }
+
+  // Hooks pós-crawl EM PARALELO (verify, classify e summarize são independentes — todos só
+  // leem articles e escrevem colunas/tabelas próprias); o perfil llm-only dá o teto à lane llm.
+  // ESCOPO: por padrão só as fichas DESTA run (run_id) — uma run de data já coberta não drena o
+  // backlog de runs anteriores (isso era ~⅓ do custo medido em docs/reprocesso-IA-audit-2026-09-11.md);
+  // o pendente global fica para o `finish --budget` explícito. `--sweep-all` restaura o antigo.
+  const sweepRunId = flags['sweep-all'] === true ? null : runId;
+  const post = [];
+  if (VERIFY_AFTER_CRAWL && HAS_LLM && flags['no-verify'] !== true && !shouldStop()) {
+    post.push(verifyPending({ runId: sweepRunId }).catch((e) => errorLog(`verify pós-crawl falhou: ${e.message}`)));
+  }
+  if (CLASSIFY_AFTER_CRAWL && HAS_LLM && flags['no-classify'] !== true && !shouldStop()) {
+    post.push(classifyPending({ runId: sweepRunId }).catch((e) => errorLog(`classify pós-crawl falhou: ${e.message}`)));
+  }
+  if (SUMMARIZE_AFTER_CRAWL && HAS_LLM && flags['no-summarize'] !== true && !shouldStop()) {
+    post.push(summarizePending({ runId: sweepRunId }).catch((e) => errorLog(`summarize pós-crawl falhou: ${e.message}`)));
+  }
+  if (post.length) {
+    setProfile('llm-only');
+    log(`pós-crawl: escopo ${sweepRunId != null ? `run ${sweepRunId}` : 'global (--sweep-all ou sem run)'} — pendentes de outras runs ficam p/ o finish`);
+    emitRunEvent({ phase: 'post', kind: 'phase-start', detail: 'Pós-processamento' });
+    await Promise.all(post);
+  } else if (shouldStop()) {
+    log('orçamento atingido: verify/classify/summarize pulados — retome com os comandos diretos');
+  }
+
+  // MODO DEBUG (`--debug`): derrama o audit DESTA run no fim — o que entrou × o que foi pulado,
+  // perdido ou errado (o mesmo relatório do `ncrawl audit`, restrito ao escopo da run).
+  if (flags.debug === true) {
+    log('');
+    for (const line of renderAudit(buildAuditReport({ runId }), { verbose: true })) log(line);
+  }
+
+  printStatus();
+}
+
+// Adiciona uma fonte. O TIPO (index|listing) é DETECTADO automaticamente (o usuário não precisa
+// saber a diferença): sem --type, roda a detecção por IA (sob governador/orçamento/ledger, p/ o
+// custo aparecer e as lanes existirem) e persiste o resultado; --type continua forçando manual.
+export async function cmdAdd(rest, flags) {
+  const url = rest[0];
+  if (!url) {
+    errorLog('uso: add <url> [--name "Nome"] [--type index|listing] [--max-index-pages N]');
+    process.exit(1);
+  }
+  const explicitType = typeof flags.type === 'string' ? flags.type : undefined;
+  let type = explicitType;
+  let detection = null;
+  if (!explicitType) {
+    detection = await runWithLimits({ command: 'add', flags, profile: 'llm-only' }, () =>
+      detectSourceType(url, { aggressive: AGGRESSIVE_DEFAULT }));
+    type = detection.type;
+    log(
+      `tipo detectado: ${type} ` +
+        `(${detection.source === 'llm' ? 'IA' : 'heurística'}, ${Math.round(detection.confidence * 100)}%) ` +
+        `— ${detection.reason}`,
+    );
+  }
+  const src = upsertSource({
+    url,
+    name: typeof flags.name === 'string' ? flags.name : undefined,
+    type,
+    maxIndexPages: flags['max-index-pages'] ? Number(flags['max-index-pages']) : undefined,
+  });
+  enqueue(url, 'listing', null, src.id, 0);
+  // Persiste no sources.json do usuário (NC_HOME): permanente, aparece no seletor da UI e re-semeia todo crawl.
+  const { added } = addSourceToConfig({
+    url: src.base_url,
+    name: src.name,
+    type: src.type,
+    maxIndexPages: src.max_index_pages,
+  });
+  log(
+    `fonte ${added ? 'adicionada' : 'atualizada'}: ${src.base_url} (id ${src.id}, type=${src.type}) ` +
+      '— salva em sources.json (permanente)',
+  );
+  return { source: src, added, detection };
+}
+
+// ---- gestão de fontes (tela "Gerenciar fontes" da TUI + CLI) ----
+
+/** Fontes + contagem de artigos + cursor de captura (DADO p/ a TUI). */
+export function listSourcesForUI() {
+  return stmts.listSources.all().map((s) => ({
+    id: s.id,
+    name: s.name,
+    base_url: s.base_url,
+    type: s.type,
+    cursor_date: s.cursor_date ?? null,
+    articles: stmts.countArticlesBySource.get(s.id).c,
+  }));
+}
+
+/** Zera o cursor de captura de UMA fonte (a próxima coleta volta a decidir pelo derivado/piso). */
+export function resetSourceCursorById(sourceId) {
+  const s = stmts.getSourceById.get(sourceId);
+  if (!s) return { error: `fonte ${sourceId} não encontrada` };
+  stmts.resetSourceCursor.run(sourceId);
+  log(`cursor: ${s.name || s.base_url} resetado (próxima coleta decide pelo derivado/piso mínimo)`);
+  return { source: { ...s, cursor_date: null } };
+}
+
+/** Troca o tipo de uma fonte (index<->listing) e persiste no DB + sources.json. Síncrono. */
+export function setSourceType(sourceId, type) {
+  const s = stmts.getSourceById.get(sourceId);
+  if (!s) return { error: `fonte ${sourceId} não encontrada` };
+  const next = type === 'index' ? 'index' : 'listing';
+  const updated = upsertSource({
+    url: s.base_url, name: s.name, type: next, maxIndexPages: s.max_index_pages,
+  });
+  addSourceToConfig({
+    url: updated.base_url, name: updated.name, type: updated.type, maxIndexPages: updated.max_index_pages,
+  });
+  log(`tipo da fonte "${updated.name || updated.base_url}" -> ${updated.type}`);
+  return { source: updated };
+}
+
+/** Re-detecta o tipo via IA (sob governador/orçamento) e persiste. Async. */
+export async function redetectSourceType(sourceId) {
+  const s = stmts.getSourceById.get(sourceId);
+  if (!s) return { error: `fonte ${sourceId} não encontrada` };
+  const detection = await runWithLimits({ command: 'add', flags: {}, profile: 'llm-only' }, () =>
+    detectSourceType(s.base_url, { aggressive: AGGRESSIVE_DEFAULT }));
+  const updated = upsertSource({
+    url: s.base_url, name: s.name, type: detection.type, maxIndexPages: s.max_index_pages,
+  });
+  addSourceToConfig({
+    url: updated.base_url, name: updated.name, type: updated.type, maxIndexPages: updated.max_index_pages,
+  });
+  log(
+    `re-detecção "${updated.name || updated.base_url}" -> ${updated.type} ` +
+      `(${detection.source === 'llm' ? 'IA' : 'heurística'}) — ${detection.reason}`,
+  );
+  return { source: updated, detection };
+}
+
+// ---------------- destruição REVERSÍVEL (backup obrigatório + fronteira do wipe) ----------------
+// O acervo do usuário já foi apagado DUAS vezes por um `reset` disparado sem querer na TUI (o de
+// 2026-09-01 levou 3249 artigos e US$ 11,99 em 37.278 chamadas, 1min45 depois de a coleta
+// terminar). Daqui em diante NENHUMA operação destrutiva roda sem uma cópia consistente do banco.
+
+// O snapshot do site publicável: os dois diretórios que o `reset` remove do git e que entram no
+// MESMO commit do marcador de wipe (ver commitWipeBoundary).
+const SITE_SNAPSHOT_REL = [DATA_DIR_REL, 'webapp/public/api/v1'];
+
+/** Há QUALQUER dado no banco? Fail-SAFE: em erro responde "sim" (na dúvida, exige o backup). */
+function dbHasAnyData() {
+  try {
+    return Boolean(stmts.hasAnyData.get().x);
+  } catch (e) {
+    warn(`backup: não consegui checar se o banco tem dados (${e.message}) — assumindo que TEM.`);
+    return true;
+  }
+}
+
+/**
+ * Backup OBRIGATÓRIO antes de uma operação destrutiva (reset/purge/remove/finish --force).
+ *
+ * `createBackup` é fail-open de propósito: devolve null e NÃO aborta nada sozinho. Só que null
+ * tem DOIS significados — "falhei" (ilegível, disco cheio, permissão, nome esgotado) e "não
+ * havia o que copiar" (banco sem dado nenhum). A distinção é feita AQUI, ANTES: com dado no
+ * banco, um null é FALHA e a destruição é ABORTADA (o oposto do que aconteceu em produção);
+ * com o banco vazio nem se chama o backup e a operação segue.
+ *
+ * A retenção (`pruneBackups`) roda DEPOIS do backup, nunca antes — podar primeiro poderia apagar
+ * a última cópia boa justo antes de descobrir que a nova falhou. `[]` é resultado legítimo dela
+ * (config perigosa: BACKUP_DIR no diretório do banco vivo), não erro.
+ *
+ * Retorna { ok, backup, reason }: reason 'created' | 'empty' | 'disabled' | 'failed'.
+ * ok:false SÓ em 'failed' — quem chama ABORTA.
+ */
+export function backupBeforeDestructive(reason, { required = BACKUP_BEFORE_DESTRUCTIVE, dir = BACKUP_DIR } = {}) {
+  if (!required) {
+    warn(
+      `BACKUP_BEFORE_DESTRUCTIVE=false — "${reason}" vai apagar SEM rede de proteção ` +
+        '(nenhuma cópia será criada). É o único jeito de perder dado de novo, e é explícito.',
+    );
+    return { ok: true, backup: null, reason: 'disabled' };
+  }
+  if (!dbHasAnyData()) {
+    log(`backup (${reason}): banco sem dado nenhum — não havia o que copiar; a operação segue.`);
+    return { ok: true, backup: null, reason: 'empty' };
+  }
+  const backup = createBackup({ reason, dir });
+  if (!backup) {
+    errorLog(
+      `backup (${reason}) FALHOU e o banco TEM dados — a operação foi ABORTADA e NADA foi apagado. ` +
+        `Verifique espaço/permissão em ${dir} (BACKUP_DIR) e tente de novo. Para destruir mesmo ` +
+        'assim, sem rede: BACKUP_BEFORE_DESTRUCTIVE=false.',
+    );
+    return { ok: false, backup: null, reason: 'failed' };
+  }
+  try {
+    pruneBackups({ dir }); // DEPOIS do backup, nunca antes
+  } catch (e) {
+    warn(`backup: retenção falhou (${e.message}) — a cópia nova está a salvo; só sobrou lixo antigo.`);
+  }
+  log(
+    `BACKUP FEITO ANTES DE APAGAR: ${backup.path} — ${backup.articles ?? '?'} artigo(s). ` +
+      `Para voltar: feche o ncrawl e copie por cima do banco (cp "${backup.path}" "${DB_PATH}").`,
+  );
+  return { ok: true, backup, reason: 'created' };
+}
+
+/**
+ * Remoção COMPLETA por id (dados + descadastro do sources.json). Usado pela CLI (cmdRemove) e pela
+ * TUI (tela Gerenciar fontes). Faz BACKUP antes (falhou = nada é apagado).
+ * Retorna { source, counts, backup } ou { error }.
+ */
+export function removeSourceById(sourceId) {
+  const src = stmts.getSourceById.get(sourceId);
+  if (!src) return { error: `fonte ${sourceId} não encontrada` };
+  const label = slugify(src.name || hostOf(src.base_url) || String(sourceId));
+  const guard = backupBeforeDestructive(`remove-${label}`);
+  if (!guard.ok) {
+    return { error: `backup falhou — remoção de "${src.name || src.base_url}" ABORTADA (nada foi apagado).` };
+  }
+  const out = removeSource(sourceId); // transação no db.js (dados + linha sources)
+  if (!out) return { error: `fonte ${sourceId} não encontrada` };
+  // Descadastra do sources.json (NC_HOME) p/ não voltar no próximo crawl (o seed re-semeia do JSON).
+  try {
+    removeSourceFromConfig(out.source.base_url);
+  } catch (e) {
+    warn(`sources.json: falha ao remover a fonte (${e.message})`);
+  }
+  return { ...out, backup: guard.backup };
+}
+
+// Remove uma fonte DE VEZ: descadastra (sources.json + linha `sources`) e apaga TODO o conteúdo
+// coletado (artigos+tags/classificações, pages, frontier, events, buscas 100% dela; selectors do
+// host se não compartilhados). Diferente do `purge` (que mantém a fonte cadastrada). Exige --yes.
+export function cmdRemove(rest, flags) {
+  const { source, error } = findOneSource(rest[0]);
+  if (error) {
+    errorLog(`remove: ${error}`);
+    process.exit(1);
+  }
+  const nArticles = stmts.countArticlesBySource.get(source.id).c;
+  if (flags.yes !== true) {
+    errorLog(
+      `remove DESCADASTRA "${source.name || source.base_url}" (id ${source.id}) e APAGA ${nArticles} ` +
+        'artigo(s) + tags/classificações, pages, frontier, events e as buscas 100% dela. A fonte ' +
+        'também sai do sources.json (NÃO volta no próximo crawl).',
+    );
+    errorLog(`Confirme com:  ncrawl remove ${JSON.stringify(rest[0])} --yes`);
+    process.exit(1);
+  }
+  const { counts, error: removeError, backup } = removeSourceById(source.id);
+  if (removeError) {
+    errorLog(`remove: ${removeError}`);
+    process.exit(1);
+  }
+  log(
+    `fonte "${source.name || source.base_url}" removida: ` +
+      Object.entries(counts).map(([k, n]) => `${k}=${n}`).join(' ') +
+      ' — descadastrada do sources.json.' +
+      (backup ? ` Backup de antes: ${backup.path} (${backup.articles ?? '?'} artigos).` : ''),
+  );
+  printStatus();
+}
+
+// Detecta se `root` é um repo git: o `.git` pode ser um ARQUIVO (git worktree) ou diretório
+// (clone comum). Fallback: `git rev-parse --is-inside-work-tree` com cwd=root, falha capturada.
+function isGitRepo(root) {
+  if (existsSync(path.join(root, '.git'))) return true;
+  try {
+    execSync('git rev-parse --is-inside-work-tree', { cwd: root, stdio: 'pipe' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Remove do git (índice + working tree) o snapshot do site COMMITADO. Fora de repo git (banco
+// standalone), apaga os diretórios direto no disco. NÃO commita: o commit/abort do pre-push e o
+// deploy cuidam do restante. Fail-open: o reset do banco já aconteceu — a remoção de arquivo
+// publicável nunca derruba o comando. Exportado p/ teste (padrão do repo).
+export function removeSiteSnapshot(root) {
+  const rel = SITE_SNAPSHOT_REL;
+  if (isGitRepo(root)) {
+    try {
+      execSync(`git rm -r --ignore-unmatch -- ${rel.join(' ')}`, {
+        cwd: root,
+        stdio: 'pipe',
+        env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+      });
+      return { mode: 'git' };
+    } catch (e) {
+      const detail = String(e.stderr || e.message || '').trim();
+      warn(`git rm do snapshot falhou (${detail}) — reset segue; remova os arquivos manualmente se preciso.`);
+      return { mode: 'git', error: detail };
+    }
+  }
+  for (const r of rel) {
+    try { rmSync(path.join(root, r), { recursive: true, force: true }); } catch { /* fail-open */ }
+  }
+  return { mode: 'fs' };
+}
+
+// Caminho conhecido pelo git (rastreado OU com mudança pendente)? `git commit -- <pathspec>` com
+// um caminho que o git nunca viu ABORTA o commit inteiro ("did not match any file(s) known to
+// git") — a fronteira do wipe deixaria de ser publicada por causa de um diretório ausente.
+function gitKnowsPath(root, rel) {
+  const run = (args) => {
+    try {
+      return execSync(`git ${args} -- ${rel}`, {
+        cwd: root,
+        stdio: 'pipe',
+        encoding: 'utf8',
+        env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+      }).trim();
+    } catch {
+      return '';
+    }
+  };
+  return Boolean(run('ls-files') || run('status --porcelain'));
+}
+
+/**
+ * Commita a FRONTEIRA do wipe: o marcador `.nc-wipe.json` e a remoção do snapshot no MESMO
+ * commit.
+ *
+ * Por que o mesmo commit: `git rm` NÃO apaga o histórico, e o restore (src/restore.js) lê o
+ * histórico. Sem uma fronteira PUBLICADA, o próximo clone/restore RESSUSCITA exatamente o que o
+ * reset acabou de apagar — o `reset` fica quebrado. O marcador é a fronteira; se ele ficar fora
+ * do commit da remoção, a fronteira não viaja com o repo.
+ *
+ * Pathspec explícito no `git commit`: o que o usuário tiver em staging NÃO entra de carona.
+ * `--no-verify`: um hook de pre-commit que re-exportasse o snapshot desfaria a remoção dentro do
+ * próprio commit. `git add -f` no marcador: um `.gitignore` local não pode calar a fronteira.
+ * Fail-open (o banco já foi apagado; nada aqui pode derrubar o comando) — e mesmo sem commit o
+ * marcador continua no working tree, onde `readWipeMarker` também lê.
+ *
+ * COMMIT QUE NÃO ACONTECE = STAGE DESFEITO (achado da validação 2026-09-05). Sem identidade do git
+ * (`user.email`/`user.name` ausentes) o commit falha e o fail-open seguia em frente deixando TUDO
+ * EM STAGE: `A .nc-wipe.json` + `D webapp/public/data/*`. O próximo `git commit -m "..."` do
+ * usuário — sobre outro assunto qualquer — varreria a remoção do acervo publicado junto, sem ele
+ * notar; publicada SEM a fronteira, ela é a destruição do incidente 7c24491 outra vez. Então o
+ * stage é DESFEITO (`git reset -- <paths>`, que não toca no working tree nem no que o usuário já
+ * tinha em staging fora desses caminhos) e o aviso diz exatamente como voltar. Desfazer, e não só
+ * avisar: um aviso no meio do log de um `reset` não impede um `git commit -a` dez minutos depois.
+ * Retorna { mode: 'git'|'fs', committed, commit?, paths, error?, unstaged? }. Exportado p/ teste.
+ */
+export function commitWipeBoundary(root, {
+  marker = true,
+  message = 'chore(reset): fronteira do wipe (.nc-wipe.json + snapshot removido)',
+} = {}) {
+  if (!isGitRepo(root)) return { mode: 'fs', committed: false, paths: [] };
+  const git = (args) =>
+    execSync(`git ${args}`, {
+      cwd: root,
+      stdio: 'pipe',
+      encoding: 'utf8',
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+    });
+  // Tira do ÍNDICE só os caminhos da fronteira (o staging alheio do usuário fica intacto) e diz o
+  // que sobrou onde. `git reset` num repo sem NENHUM commit (HEAD não nascido) falha — ali não há
+  // histórico p/ ressuscitar nada, então o fail-open é inofensivo.
+  const desfazStage = (paths) => {
+    if (!paths.length) return false;
+    try {
+      git(`reset -q -- ${paths.join(' ')}`);
+      return true;
+    } catch (e) {
+      warn(`fronteira do wipe: não consegui desfazer o stage (${String(e.stderr || e.message).trim()}).`);
+      return false;
+    }
+  };
+  const avisaStageDesfeito = (motivo, paths, unstaged) => {
+    warn(
+      `fronteira do wipe NÃO commitada (${motivo}). ` +
+        (unstaged
+          ? 'O STAGE foi DESFEITO de propósito: a remoção do snapshot NÃO pode entrar de carona no seu próximo `git commit`. '
+          : 'ATENÇÃO: a remoção do snapshot continua EM STAGE — desfaça com ' +
+            `\`git reset -- ${paths.join(' ')}\` antes do seu próximo commit. `) +
+        `O acervo publicado continua no histórico do git; no disco esses arquivos foram removidos pelo reset — ` +
+        `para trazê-los de volta: \`git checkout -- ${SITE_SNAPSHOT_REL.join(' ')}\`. ` +
+        `O marcador está em ${path.join(root, WIPE_MARKER_FILE)} e vale LOCALMENTE (readWipeMarker lê o ` +
+        'working tree); para publicar a fronteira, commite o marcador JUNTO da remoção do snapshot — ' +
+        'senão um clone novo ressuscita o acervo apagado.',
+    );
+  };
+  if (!marker) {
+    // Sem marcador não há fronteira: commitar só a remoção do snapshot publicaria justamente o
+    // estado que o restore desfaz. E deixar a remoção em stage é a mesma armadilha do commit que
+    // falha — o stage sai do caminho, o log explica.
+    const pendentes = SITE_SNAPSHOT_REL.filter((p) => gitKnowsPath(root, p));
+    const unstaged = desfazStage(pendentes);
+    avisaStageDesfeito('o marcador não pôde ser gravado — sem ele não há fronteira', pendentes, unstaged);
+    return { mode: 'git', committed: false, paths: [], error: 'sem marcador', unstaged };
+  }
+  try {
+    git(`add -f -- ${WIPE_MARKER_FILE}`);
+  } catch (e) {
+    warn(`marcador de wipe: git add falhou (${String(e.stderr || e.message).trim()}).`);
+  }
+  const paths = [WIPE_MARKER_FILE, ...SITE_SNAPSHOT_REL].filter((p) => gitKnowsPath(root, p));
+  if (!paths.length) return { mode: 'git', committed: false, paths, error: 'nada conhecido pelo git' };
+  try {
+    git(`commit --no-verify -m ${JSON.stringify(message)} -- ${paths.join(' ')}`);
+  } catch (e) {
+    const detail = String(e.stdout || e.stderr || e.message || '').trim();
+    if (/nothing to commit|no changes added/i.test(detail)) {
+      return { mode: 'git', committed: false, paths, error: 'nada a commitar' };
+    }
+    const unstaged = desfazStage(paths);
+    // O erro do git é multi-linha ("Author identity unknown\n\n*** Please tell me who you are…"):
+    // colapsar o whitespace antes de cortar em 200 faz caber a CAUSA, não só o cabeçalho.
+    avisaStageDesfeito(detail.replace(/\s+/g, ' ').slice(0, 200), paths, unstaged);
+    return { mode: 'git', committed: false, paths, error: detail, unstaged };
+  }
+  let commit = null;
+  try {
+    commit = git('rev-parse HEAD').trim();
+  } catch {
+    /* informativo */
+  }
+  return { mode: 'git', committed: true, commit, paths };
+}
+
+/**
+ * O que o reset vai destruir, como DADO (a TUI mostra a MESMA conta do CLI, sem re-implementar).
+ * Inclui o gasto de LLM acumulado (tabela llm_usage) porque é a parte que NÃO volta com um
+ * re-crawl: recoletar custa dinheiro de novo.
+ */
+export function getResetImpact() {
+  const s = getStatus();
+  let last = null;
+  try {
+    last = latestBackup();
+  } catch {
+    last = null; // listagem de backups é telemetria: nunca derruba o aviso
+  }
+  return {
+    dbPath: DB_PATH,
+    articles: s.articles,
+    sources: s.sources,
+    pages: s.pages,
+    classified: s.classified,
+    summaries: s.summaries,
+    spendUsd: s.spend.totalUsd,
+    calls: s.spend.calls,
+    backupDir: BACKUP_DIR,
+    lastBackup: last ? { path: last.path, articles: last.articles, at: last.mtime.toISOString() } : null,
+  };
+}
+
+/** As linhas do aviso do reset (CLI e TUI mostram as MESMAS). Puro. */
+export function resetImpactLines(impact = getResetImpact()) {
+  const lines = [
+    `reset APAGA TODOS OS DADOS de ${impact.dbPath}:`,
+    `  ${impact.articles} artigo(s) · ${impact.sources} fonte(s) · ${impact.pages} página(s) · ` +
+      `${impact.classified} classificação(ões) · ${impact.summaries} resumo(s)`,
+    `  US$ ${impact.spendUsd.toFixed(2)} de LLM em ${impact.calls} chamada(s) — recoletar custa esse dinheiro DE NOVO.`,
+    `  backup automático (antes de apagar) em ${impact.backupDir}`,
+  ];
+  if (impact.lastBackup) {
+    lines.push(`  última cópia existente: ${impact.lastBackup.path} (${impact.lastBackup.articles ?? '?'} artigos, ${impact.lastBackup.at})`);
+  }
+  return lines;
+}
+
+/**
+ * Confirmação FORTE do reset. `--yes` sozinho é reflexo — e foi exatamente um reflexo (descer
+ * demais no menu e dar dois Enter) que apagou o acervo duas vezes. Para apagar N artigos é
+ * preciso DIGITAR N: um número que só aparece na tela de aviso, que ninguém decora e que muda a
+ * cada coleta. Separador de milhar/espaço é aceito (3.249 == 3 249 == 3249).
+ * Base VAZIA (0 artigos) dispensa o desafio: não há o que perder.
+ * Puro e exportado — a tela da TUI consome este MESMO cheque.
+ * Retorna { ok, expected, given, reason: 'empty'|'missing'|'mismatch'|'match' }.
+ */
+export function checkResetConfirmation(answer, impact = getResetImpact()) {
+  const expected = String(impact.articles);
+  const given = answer === true || answer == null ? '' : String(answer).trim();
+  if (impact.articles === 0) return { ok: true, expected, given, reason: 'empty' };
+  if (!given) return { ok: false, expected, given, reason: 'missing' };
+  const normalized = given.replace(/[.\s_,]/g, '');
+  if (normalized !== expected) return { ok: false, expected, given, reason: 'mismatch' };
+  return { ok: true, expected, given, reason: 'match' };
+}
+
+// Limpa TODOS os dados (slate limpo). Destrutivo: exige --yes E `--confirm <nº de artigos>`,
+// tira BACKUP antes (falhou = aborta) e publica a FRONTEIRA do wipe (marcador + remoção do
+// snapshot no mesmo commit) — sem ela o restore ressuscitaria o acervo recém-apagado.
+export function cmdReset(flags = {}, { root = ROOT } = {}) {
+  const impact = getResetImpact();
+  const check = checkResetConfirmation(flags.confirm, impact);
+  if (flags.yes !== true || !check.ok) {
+    for (const line of resetImpactLines(impact)) errorLog(line);
+    if (check.reason === 'mismatch') {
+      errorLog(`confirmação NÃO confere: você digitou "${check.given}" e o esperado é ${check.expected} (o número de artigos que serão perdidos).`);
+    }
+    errorLog(
+      `Confirme com:  npm run reset -- --yes${impact.articles > 0 ? ` --confirm ${check.expected}` : ''}`,
+    );
+    process.exit(1);
+  }
+
+  // 1) BACKUP antes de qualquer destruição — wipeAll() roda VACUUM e não deixa nem resíduo forense.
+  const guard = backupBeforeDestructive('reset');
+  if (!guard.ok) {
+    errorLog('reset ABORTADO: sem backup não se apaga o acervo. NADA foi apagado.');
+    process.exit(1);
+  }
+
+  // 2) MARCADOR de wipe ANTES do wipe: a contagem é a de ANTES, e o `snapshotAt` que vira a
+  // fronteira é lido do snapshot ainda commitado no HEAD (depois do `git rm` ele some).
+  const marker = writeWipeMarker({ root, reason: 'reset', articles: impact.articles });
+
+  // 3) destruição
+  wipeAll();
+  const snapshot = removeSiteSnapshot(root);
+
+  // 4) fronteira PUBLICADA: marcador + remoção do snapshot no MESMO commit
+  const boundary = commitWipeBoundary(root, { marker });
+
+  log(`reset: todos os dados apagados (${DB_PATH}).`);
+  if (guard.backup) {
+    log(
+      `o acervo de antes está em ${guard.backup.path} (${guard.backup.articles ?? '?'} artigos) — ` +
+        `para voltar: cp "${guard.backup.path}" "${DB_PATH}".`,
+    );
+  }
+  log(
+    'snapshot do site removido do git (webapp/public/data + api/v1) — o próximo export/deploy ' +
+      'publicará o acervo vazio; colete de novo com npm run crawl.',
+  );
+  if (marker) {
+    log(
+      `marcador de wipe gravado (${marker.file}): o restore NÃO vai ressuscitar o acervo apagado` +
+        (boundary.committed ? ` — commitado junto da remoção do snapshot (${String(boundary.commit).slice(0, 8)}).` : '.'),
+    );
+  }
+  printStatus();
+  return { impact, backup: guard.backup, marker, snapshot, boundary };
+}
+
+// Agrupa as tags do artigo por faceta (preservando a ordem de rank), para o export.
+function tagsByFacet(articleId) {
+  const out = {};
+  for (const r of stmts.getTagsForArticle.all(articleId)) {
+    (out[r.facet] ||= []).push(r.tag);
+  }
+  return out;
+}
+
+// Markdown do artigo com frontmatter YAML das tags (só quando há classificação).
+function articleMarkdown(a, facets) {
+  const facetNames = Object.keys(facets);
+  let fm = '';
+  if (facetNames.length) {
+    const lines = ['---'];
+    if (a.title) lines.push(`title: ${JSON.stringify(a.title)}`);
+    lines.push(`url: ${a.url}`);
+    if (a.published_at) lines.push(`published_at: ${a.published_at}`);
+    for (const facet of facetNames) lines.push(`${facet}: [${facets[facet].join(', ')}]`);
+    lines.push('---', '');
+    fm = lines.join('\n');
+  }
+  return (
+    fm +
+    `# ${a.title || ''}\n\n` +
+    `> ${a.url}\n` +
+    (a.published_at ? `> ${a.published_at}\n` : '') +
+    (a.title_pt ? `\n## ${a.title_pt}\n` : '') +
+    (a.summary_pt ? `\n${a.summary_pt}\n` : '') +
+    `\n${a.content || ''}\n`
+  );
+}
+
+export function cmdExport(flags) {
+  // Formato web: snapshot JSON estático do acervo COMPLETO p/ o webapp (webapp/public/data),
+  // COMMITADO no repo e servido pela Vercel — por isso o destino default é o REPO (ROOT), não
+  // o EXPORT_DIR de NC_HOME como nos formatos md/json. Snapshot é estado, não delta.
+  if (flags.format === 'web') {
+    if (flags.all === true) warn('--all é ignorado no formato web (o snapshot é sempre o acervo completo).');
+    const outDir = flags.out ? path.resolve(String(flags.out)) : path.join(ROOT, 'webapp', 'public', 'data');
+    // Opt-in do guard anti-encolhimento (src/snapshot-guard.js). SEM este repasse o bloqueio não
+    // teria saída pela CLI: a mensagem manda repetir com `--allow-shrink [wipe]`, o parseFlags de
+    // index.js entrega `flags['allow-shrink']` (true, ou a string 'wipe' na forma com ESPAÇO) — e
+    // ele parava aqui, então seguir a hint levava ao MESMO bloqueio, para sempre, depois de
+    // qualquer redução intencional (`ncrawl remove <fonte>`/`purge`). É o fio que faltava.
+    exportWebSnapshot({ outDir, allowShrink: flags['allow-shrink'] });
+    // API pública dedicada e versionada (webapp/public/api/v1/corpus.json) — regenerada no MESMO
+    // export que o pre-push roda. Só no destino default: um --out pontual não deve cuspir a API
+    // pública noutro lugar (o snapshot web ainda respeita o --out p/ exports de inspeção).
+    if (!flags.out) exportPublicApi({ outDir: path.join(ROOT, 'webapp', 'public', 'api', 'v1') });
+    return;
+  }
+  const format = flags.format === 'json' ? 'json' : 'md';
+  const outDir = EXPORT_DIR;
+  mkdirSync(outDir, { recursive: true });
+  // Delta: por padrão exporta só a última execução; --all (ou sem runs) exporta o acervo inteiro.
+  const latest = stmts.getLatestRunId.get().id;
+  const all = flags.all === true || latest == null;
+  let n = 0;
+  for (const s of stmts.listSources.all()) {
+    const arts = all
+      ? stmts.listArticlesBySource.all(s.id)
+      : stmts.listArticlesForRunBySource.all(s.id, latest);
+    if (!arts.length) continue;
+    const dir = path.join(outDir, slugify(s.name || String(s.id)));
+    mkdirSync(dir, { recursive: true });
+    for (const a of arts) {
+      const base = `${slugify(a.title || 'artigo')}-${a.id}`;
+      const facets = tagsByFacet(a.id);
+      if (format === 'json') {
+        const cls = stmts.getClassification.get(a.id);
+        const out = { ...a, tags: facets, classification: cls ? JSON.parse(cls.result_json) : null };
+        writeFileSync(path.join(dir, `${base}.json`), JSON.stringify(out, null, 2));
+      } else {
+        writeFileSync(path.join(dir, `${base}.md`), articleMarkdown(a, facets));
+      }
+      n++;
+    }
+  }
+  log(`exportados ${n} artigos para ${outDir} (${format})${all ? ' [todos]' : ` [run ${latest}]`}`);
+}
+
+// ---- piso "legado" (migração Jev, decisão 8): --include-legacy com contagem + custo + --yes ----
+
+/**
+ * Custo ESTIMADO (US$) de processar N artigos por etapa — exibido ANTES do `--include-legacy`
+ * rodar (a confirmação precisa de um número, não de "pode sair caro"). Por artigo: verify = 1
+ * chamada verifyRecord; summarize = 1; classify = 1 por faceta (o ledger agrega todas sob
+ * 'classify'); reclean = articleReclean + o re-verify; reextract = articleClean + o re-verify.
+ * estimateStageCallUsd usa a média REAL do llm_usage quando há amostra; sem histórico cai no seed
+ * do tier — aí é TETO, não previsão.
+ */
+export function estimateLegacyUsd({ verify = 0, summary = 0, classify = 0, reclean = 0, reextract = 0 } = {}) {
+  const call = (stage) => estimateStageCallUsd(stage, stageModel(stage).model);
+  let facets = 1;
+  try {
+    facets = Math.max(1, getFacets().length);
+  } catch {
+    /* taxonomia ilegível: estima 1 chamada por artigo (a classificação nem rodaria) */
+  }
+  const parts = {
+    verify: verify * call('verifyRecord'),
+    summary: summary * call('summarize'),
+    classify: classify * facets * call('classify'),
+    reclean: reclean * (call('articleReclean') + call('verifyRecord')),
+    reextract: reextract * (call('articleClean') + call('verifyRecord')),
+  };
+  return { ...parts, total: parts.verify + parts.summary + parts.classify + parts.reclean + parts.reextract };
+}
+
+const fmtUsd = (n) => `US$ ${n.toFixed(n >= 1 ? 2 : 4)}`;
+
+/**
+ * `--limit` de finish/reclean/reextract: ausente = `dflt`; senão inteiro >= 0, ou sai 1. Negativo
+ * ou lixo NÃO pode passar: o portão do legado capa a contagem em 0 (mostra "0 itens / US$ 0") mas
+ * o sweep repassaria o valor ao SQLite, onde `LIMIT -1` = SEM limite (e `Number('x')` = NaN vira
+ * Infinity nos sweeps) — o número exibido deixaria de ser o que roda.
+ */
+function parseLimitFlag(flags, command, dflt = Infinity) {
+  const raw = flags.limit;
+  if (raw === undefined || raw === null || raw === false) return dflt;
+  const n = typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : typeof raw === 'number' ? raw : Number.NaN;
+  if (!Number.isInteger(n) || n < 0) {
+    errorLog(`${command}: --limit precisa ser um inteiro >= 0 (veio "${raw}") — nada foi processado.`);
+    process.exit(1);
+  }
+  return n;
+}
+
+/**
+ * Flags que mudam O QUE roda, repetidas na linha "Confirme com:" — sem elas, colar a sugestão
+ * rodaria OUTRA coisa (ex.: sem o --budget, sem teto; sem um --no-*, um sweep a mais).
+ */
+function confirmFlagsSuffix(flags, names) {
+  let s = '';
+  for (const k of names) {
+    if (flags[k] === true) s += ` --${k}`;
+    else if (flags[k] != null && flags[k] !== false) s += ` --${k} ${flags[k]}`;
+  }
+  return s;
+}
+
+/**
+ * Portão do `--include-legacy` (finish/reclean/reextract): SEMPRE imprime quanto do legado entraria
+ * e o custo estimado; sem `--yes` sai 1 (nada roda). Chamado ANTES do cheque de chave — recusar/
+ * mostrar o impacto não depende de ter LLM configurado. `counts` = {verify?, summary?, classify?,
+ * reclean?, reextract?} já capados pelo --limit; `confirm` = a linha de comando que confirma;
+ * `free` = o comando roda sem LLM (reextract sem chave: só a parte determinística, US$ 0).
+ */
+function gateIncludeLegacy({ command, counts, floor, legacyTotal, confirm, free = false }, flags) {
+  const est = free ? { verify: 0, summary: 0, classify: 0, reclean: 0, reextract: 0, total: 0 } : estimateLegacyUsd(counts);
+  const LABEL = {
+    verify: 'verificação', summary: 'resumos', classify: 'classificação', reclean: 'reclean (suspect)',
+    reextract: 'reextract (alvo)',
+  };
+  const keys = Object.keys(counts).filter((k) => LABEL[k]);
+  const byStage = keys.map((k) => `${LABEL[k]}=${counts[k]}`).join(' · ');
+  const byCost = keys.filter((k) => counts[k] > 0).map((k) => `${LABEL[k]} ${fmtUsd(est[k])}`).join(' · ');
+  warn(
+    `${command} --include-legacy: o ACERVO LEGADO (${legacyTotal} artigo(s) com run_id NULL ou < ${floor} — ` +
+      `ex.: os restaurados do git) entraria no ${free ? 'reprocessamento (sem chave LLM: só a parte determinística)' : 'pós-processamento PAGO'}.`,
+  );
+  warn(`legado a processar: ${byStage || 'nada'}`);
+  if (free) {
+    warn('custo estimado: US$ 0 (sem chave LLM não há limpeza/verificação por IA).');
+  } else {
+    warn(
+      `custo estimado: ~${fmtUsd(est.total)}${byCost ? ` (${byCost})` : ''} — média real do ledger quando há ` +
+        'histórico; sem ele, teto conservador pelo seed do modelo. Limite com --limit N / --budget USD.',
+    );
+  }
+  if (flags.yes !== true) {
+    errorLog(`Confirme com:  ${confirm}   (sem --include-legacy o ${command} processa só o que é DESTA era)`);
+    process.exit(1);
+  }
+  return est;
+}
+
+/**
+ * Dica do `finish` SEM --include-legacy quando o piso deixou pendentes do legado de fora (null =
+ * nada ficou de fora). NÃO traz --yes: rodá-la primeiro mostra contagem × custo; o --yes vem
+ * depois, pedido pelo próprio portão. `era` = countPendingByEra().
+ */
+export function legacyLeftHint(era) {
+  const lg = era?.legacy;
+  if (!lg || lg.verify + lg.summary + lg.classify <= 0) return null;
+  return (
+    `legado fora (piso run >= ${era.floor}): ${lg.verify} sem veredito · ${lg.summary} sem resumo · ` +
+    `${lg.classify} sem tags — não serão processados (p/ ver contagem × custo: ncrawl finish --include-legacy).`
+  );
+}
+
+// Finaliza o PÓS-PROCESSAMENTO dos pendentes (verify + classify + summarize) num comando só, SEM
+// novo crawl — p/ terminar/retomar um backlog interrompido. Roda os 3 sweeps EM PARALELO (colunas
+// independentes) no perfil llm-only, honrando --limit/--force/--budget/--parallel e os --no-* p/
+// pular um sweep. O orçamento (shouldStop) para e devolve os pendentes, então dá p/ limitar o gasto
+// por execução e retomar depois. Espelha o bloco pós-crawl (crawlRun) num comando avulso.
+// Piso legado: por padrão só os artigos DESTA era (run_id >= settings.jev_floor_run_id); o acervo
+// anterior (ex.: os 15.502 restaurados, run_id NULL) só com --include-legacy --yes.
+export async function cmdFinish(flags) {
+  const force = flags.force === true;
+  const includeLegacy = Boolean(flags['include-legacy']);
+  const limit = parseLimitFlag(flags, 'finish');
+  // UMA linha de confirmação p/ os dois portões (--force e --include-legacy), com TODA flag que
+  // muda o que roda: colar a sugestão tem de rodar exatamente o que foi mostrado.
+  const confirm =
+    `ncrawl finish${force ? ' --force' : ''}${includeLegacy ? ' --include-legacy' : ''} --yes` +
+    confirmFlagsSuffix(flags, ['limit', 'budget', 'parallel', 'no-verify', 'no-summarize', 'no-classify']);
+  // `--force` é DESTRUIÇÃO disfarçada de re-processamento: ele re-roda TODOS os artigos desta era
+  // (o default de --limit é Infinity; com --include-legacy, o acervo INTEIRO) e, no caminho do
+  // classify, APAGA as tags já gravadas (deleteTagsForArticle) além de sobrescrever resumos e
+  // vereditos. Se algum sweep parar no meio (orçamento, 429, Ctrl+C), o que foi apagado NÃO volta
+  // sozinho. Por isso: --yes + backup, como em qualquer destruição. É verificado ANTES do cheque
+  // de chave — recusar um flag destrutivo não depende de ter LLM configurado.
+  if (force && flags.yes !== true) {
+    errorLog(
+      `finish --force RE-PROCESSA por LLM todos os artigos ${includeLegacy ? 'do acervo (legado incluído)' : 'desta era'} ` +
+        'e APAGA as tags/classificações, os resumos e os vereditos já gravados (interromper no meio ' +
+        'deixa o buraco). Isso custa dinheiro.',
+    );
+    // Com --include-legacy a recusa fica p/ o portão do legado logo abaixo: ele mostra contagem ×
+    // custo ANTES de pedir o --yes (senão o caminho MAIS caro — o legado inteiro — seria o único
+    // confirmado às cegas: a sugestão com --yes passaria pelos dois portões de uma vez).
+    if (!includeLegacy) {
+      errorLog(`Confirme com:  ${confirm}   (sem --force o finish só completa os PENDENTES, sem apagar nada)`);
+      process.exit(1);
+    }
+  }
+  const era = countPendingByEra();
+  if (includeLegacy) {
+    // Quanto do legado cada sweep pegaria (--force: TODOS os legados; senão só os pendentes),
+    // capado pelo --limit (cada sweep aplica o limite sozinho) e zerado pelos --no-*.
+    const cap = (n) => (Number.isFinite(limit) ? Math.min(n, Math.max(0, limit)) : n);
+    const pick = (skip, pending) => (skip ? 0 : cap(force ? era.legacy.articles : pending));
+    gateIncludeLegacy(
+      {
+        command: 'finish',
+        floor: era.floor,
+        legacyTotal: era.legacy.articles,
+        counts: {
+          verify: pick(flags['no-verify'] === true, era.legacy.verify),
+          summary: pick(flags['no-summarize'] === true, era.legacy.summary),
+          classify: pick(flags['no-classify'] === true, era.legacy.classify),
+        },
+        confirm,
+      },
+      flags,
+    );
+  }
+  if (!HAS_LLM) {
+    errorLog(`${providerInfo().keyVar} ausente — finalizar os pendentes requer o caminho LLM.`);
+    process.exit(1);
+  }
+  if (!includeLegacy) {
+    const hint = legacyLeftHint(era);
+    if (hint) log(hint);
+  }
+  if (force) {
+    const guard = backupBeforeDestructive('finish-force');
+    if (!guard.ok) {
+      errorLog('finish --force ABORTADO: sem backup não se apaga classificação/resumo/veredito. NADA foi tocado.');
+      process.exit(1);
+    }
+  }
+  await runWithLimits({ command: 'finish', flags, profile: 'llm-only' }, () => {
+    const tasks = [];
+    const opts = { limit, force, includeLegacy };
+    if (flags['no-verify'] !== true) {
+      tasks.push(verifyPending(opts).catch((e) => errorLog(`verify falhou: ${e.message}`)));
+    }
+    if (flags['no-summarize'] !== true) {
+      tasks.push(summarizePending(opts).catch((e) => errorLog(`summarize falhou: ${e.message}`)));
+    }
+    if (flags['no-classify'] !== true) {
+      tasks.push(classifyPending(opts).catch((e) => errorLog(`classify falhou: ${e.message}`)));
+    }
+    return Promise.all(tasks);
+  });
+  printStatus();
+}
+
+// reextract: RE-EXTRAI do zero artigos salvos (re-fetch + re-parse + re-clean + re-verify) —
+// o conserto dos casos P5/P6 da captura 2026-08-14 (release notes do GitHub terminando no
+// botão; quebras de linha perdidas; moldura de página no fallback). Difere do reclean (spans
+// no texto SALVO): aqui a extração é refeita do HTML-fonte. Sem chave LLM, roda só a parte
+// determinística (re-extração + moldura) e pula clean/verify.
+export async function cmdReextract(flags) {
+  // Varredura completa exige --all EXPLÍCITO: sem --limit o default é PEQUENO
+  // (REEXTRACT_DEFAULT_LIMIT) — uma migração acidental não reescreve o corpus inteiro.
+  const all = flags.all === true;
+  const limit = all ? Infinity : parseLimitFlag(flags, 'reextract', REEXTRACT_DEFAULT_LIMIT);
+  const urlFilter = typeof flags.url === 'string' && flags.url.trim() ? flags.url.trim() : null;
+  // Piso legado (decisão 8 da migração Jev): re-clean + re-verify do acervo ANTERIOR ao piso (os
+  // restaurados do git) é pago — só com --include-legacy --yes, depois de mostrar contagem e custo.
+  // A contagem sai da MESMA seleção que roda (selectReextractTargets), já com --url e --limit.
+  const includeLegacy = Boolean(flags['include-legacy']);
+  if (includeLegacy) {
+    const floor = getLegacyFloor();
+    const n = selectReextractTargets({ urlFilter, limit, includeLegacy: true })
+      .filter((r) => isLegacyRow(r, floor)).length;
+    gateIncludeLegacy(
+      {
+        command: 'reextract',
+        floor,
+        legacyTotal: countPendingByEra().legacy.articles,
+        counts: { reextract: n },
+        free: !HAS_LLM,
+        confirm:
+          `ncrawl reextract --include-legacy --yes${all ? ' --all' : ''}` +
+          `${!all && flags.limit != null ? ` --limit ${flags.limit}` : ''}${urlFilter ? ` --url ${urlFilter}` : ''}` +
+          confirmFlagsSuffix(flags, ['budget']),
+      },
+      flags,
+    );
+  }
+  // `--all` reescreve o CORPO de todo o acervo: é sobrescrita em massa, não "reprocessamento"
+  // inócuo. Backup antes (o guard de encolhimento do reextract.js protege ficha a ficha; a cópia
+  // protege o conjunto). O default limitado (REEXTRACT_DEFAULT_LIMIT) segue sem cerimônia.
+  if (all) {
+    const guard = backupBeforeDestructive('reextract-all');
+    if (!guard.ok) {
+      errorLog('reextract --all ABORTADO: sem backup não se reescreve o corpo do acervo inteiro. NADA foi tocado.');
+      process.exit(1);
+    }
+  }
+  await runWithLimits({ command: 'reextract', flags, profile: 'llm-only' }, () =>
+    reextractTargets({ urlFilter, limit, includeLegacy }));
+  printStatus();
+}
+
+// reclean: re-limpa os 'suspect' com o passe FORTE (Pro) e re-verifica (melhoria da seção 7).
+// Piso legado: só os suspect DESTA era; os do acervo anterior (4.517 restaurados) só com
+// --include-legacy --yes, que mostra contagem e custo antes (portão ANTES do cheque de chave).
+export async function cmdReclean(flags) {
+  const includeLegacy = Boolean(flags['include-legacy']);
+  const limit = parseLimitFlag(flags, 'reclean');
+  if (includeLegacy) {
+    const era = countPendingByEra();
+    const n = Number.isFinite(limit) ? Math.min(era.legacy.suspect, limit) : era.legacy.suspect;
+    gateIncludeLegacy(
+      {
+        command: 'reclean',
+        floor: era.floor,
+        legacyTotal: era.legacy.articles,
+        counts: { reclean: n },
+        confirm: `ncrawl reclean --include-legacy --yes${confirmFlagsSuffix(flags, ['limit', 'budget', 'parallel'])}`,
+      },
+      flags,
+    );
+  }
+  if (!HAS_LLM) {
+    errorLog(`${providerInfo().keyVar} ausente — o reclean requer o caminho LLM.`);
+    process.exit(1);
+  }
+  await runWithLimits({ command: 'reclean', flags, profile: 'llm-only' }, () =>
+    recleanSuspects({ limit, includeLegacy }));
+  printStatus();
+}
+
+// Acha UMA fonte por nome/URL/substring (mesmo espírito do --only do crawl). Erro se 0 ou 2+.
+function findOneSource(query) {
+  const q = String(query || '').toLowerCase().trim();
+  if (!q) return { error: 'informe o nome/URL (ou parte) da fonte' };
+  const all = stmts.listSources.all();
+  const hits = all.filter((s) => `${s.name || ''} ${s.base_url}`.toLowerCase().includes(q));
+  if (hits.length === 1) return { source: hits[0] };
+  if (hits.length === 0) {
+    return { error: `nenhuma fonte casa com "${query}". Fontes: ${all.map((s) => s.name || s.base_url).join(' | ') || '(nenhuma)'}` };
+  }
+  return { error: `"${query}" é ambíguo: ${hits.map((s) => s.name || s.base_url).join(' | ')}` };
+}
+
+// Apaga os DADOS de uma fonte (artigos+tags/classificações via cascade, pages, frontier,
+// events; a fonte continua cadastrada) p/ refazer o processo do zero de forma reprodutível.
+// `--selectors` também derruba o cache de seletores dos hosts da fonte.
+export function cmdPurge(rest, flags) {
+  const { source, error } = findOneSource(rest[0]);
+  if (error) {
+    errorLog(`purge: ${error}`);
+    process.exit(1);
+  }
+  const nArticles = stmts.countArticlesBySource.get(source.id).c;
+  if (flags.yes !== true) {
+    errorLog(
+      `purge APAGA os dados de "${source.name || source.base_url}" (id ${source.id}): ` +
+        `${nArticles} artigo(s) + tags/classificações, pages, frontier e events.`,
+    );
+    errorLog(`Confirme com:  ncrawl purge ${JSON.stringify(rest[0])} --yes${flags.selectors ? ' --selectors' : ''}`);
+    process.exit(1);
+  }
+  const guard = backupBeforeDestructive(`purge-${slugify(source.name || hostOf(source.base_url) || String(source.id))}`);
+  if (!guard.ok) {
+    errorLog('purge ABORTADO: sem backup não se apagam os dados da fonte. NADA foi apagado.');
+    process.exit(1);
+  }
+  // Transacional (db.js): antes eram 4 `.run()` soltos e uma falha no meio deixava a fonte
+  // pela metade (artigos apagados, frontier intacta) — "apague e refaça" deixava de ser reprodutível.
+  const counts = purgeSource(source.id, { selectors: flags.selectors === true });
+  log(
+    `purge de "${source.name || source.base_url}": ` +
+      Object.entries(counts).map(([k, n]) => `${k}=${n}`).join(' ') +
+      ' apagados (a fonte segue cadastrada — o próximo crawl refaz tudo).' +
+      (guard.backup ? ` Backup de antes: ${guard.backup.path} (${guard.backup.articles ?? '?'} artigos).` : ''),
+  );
+  printStatus();
+}
+
+// ---------------- inspect: auditoria de uma run (o "ver tudo" pedido) ----------------
+const parseDetail = (s) => {
+  try {
+    return s ? JSON.parse(s) : null;
+  } catch {
+    return null;
+  }
+};
+
+/** Relatório estruturado de uma run (dado puro; o cmdInspect imprime). */
+export function getRunReport(runId) {
+  const run = stmts.getRunById.get(runId);
+  if (!run) return null;
+  const articles = stmts.listArticlesForRunInspect.all(runId);
+  const byIssue = new Map();
+  for (const a of articles) {
+    const key = a.issue_url || '(avulsos — fora de curadoria)';
+    if (!byIssue.has(key)) byIssue.set(key, []);
+    byIssue.get(key).push(a);
+  }
+  return {
+    run,
+    kinds: stmts.countArticlesByKindForRun.all(runId),
+    verify: stmts.countVerifyForRun.all(runId),
+    stages: stmts.countEventsByStage.all(runId),
+    usage: stmts.usageByStage.all(runId),
+    byIssue,
+    events: stmts.listEventsForRun.all(runId),
+  };
+}
+
+export function cmdInspect(flags) {
+  // --url <substr>: linha do tempo de eventos + registros que casam (auditoria de UM link).
+  if (typeof flags.url === 'string' && flags.url) {
+    const like = `%${flags.url}%`;
+    const arts = stmts.listArticlesLikeUrl.all(like);
+    log(`— inspect --url "${flags.url}" —`);
+    for (const a of arts) {
+      log(
+        `artigo #${a.id} [${a.kind || 'sem kind'}] ${a.verify_status || 'não verificado'}` +
+          `${a.needs_enrich ? ' (aguardando corpo)' : ''} src=${a.content_source || '—'} ${a.title}`,
+      );
+      log(`  ${a.url}`);
+      if (a.verify_notes) log(`  notas: ${a.verify_notes}`);
+    }
+    if (!arts.length) log('nenhum artigo casa.');
+    const evs = stmts.listEventsForUrl.all(like, flags.verbose === true ? 500 : 100);
+    for (const e of evs) {
+      const d = parseDetail(e.detail);
+      log(`[run ${e.run_id ?? '—'}] ${e.created_at} ${e.stage}/${e.status}${d ? ` ${JSON.stringify(d)}` : ''}  ${e.url}`);
+    }
+    if (!evs.length) log('nenhum evento casa.');
+    return;
+  }
+
+  // Run alvo: --run N | default = última run DE CRAWL (verify/classify avulsos não têm artigos).
+  const latest = stmts.getLatestCrawlRunId.get().id ?? stmts.getLatestRunId.get().id;
+  const runId = flags.run ? Number(flags.run) : latest;
+  if (!runId) {
+    errorLog('inspect: nenhuma run registrada ainda (rode um crawl).');
+    process.exit(1);
+  }
+  const rep = getRunReport(runId);
+  if (!rep) {
+    errorLog(`inspect: run #${runId} não existe. Runs recentes: ${stmts.listRuns.all(5).map((r) => `#${r.id} ${r.command}`).join(', ') || '—'}`);
+    process.exit(1);
+  }
+  const { run } = rep;
+  log(`— inspect run #${run.id} (${run.command || '—'}, ${run.status}, início ${run.started_at}) —`);
+  log(`custo LLM: US$ ${Number(run.spent_usd).toFixed(4)}${run.budget_usd ? ` de US$ ${Number(run.budget_usd).toFixed(2)}` : ''}`);
+  if (rep.usage.length) {
+    log(`  por etapa: ${rep.usage.map((u) => `${u.stage}=${u.n}x/US$${u.usd.toFixed(4)}`).join(' ')}`);
+  }
+  log(`artigos da run: ${[...rep.byIssue.values()].reduce((n, a) => n + a.length, 0)} — ${rep.kinds.map((k) => `${k.kind}=${k.c}`).join(' ') || '—'}`);
+  log(`verificação: ${rep.verify.map((v) => `${v.s}=${v.c}`).join(' ') || '—'}`);
+  if (rep.stages.length) {
+    log(`eventos: ${rep.stages.map((s) => `${s.stage}/${s.status}=${s.c}`).join(' ')}`);
+  }
+
+  for (const [issue, arts] of rep.byIssue) {
+    log('');
+    log(`ISSUE ${issue} — ${arts.length} registro(s)`);
+    for (const a of arts) {
+      const v = a.verify_status || 'pend';
+      const srcTag = a.needs_enrich ? 'blurb (aguardando corpo)' : a.content_source === 'aggregator' ? 'blurb do agregador' : `alvo${a.cleaned ? '+limpo' : ''}`;
+      log(`  [${(a.kind || '—').padEnd(7)}] ${v.padEnd(7)} ${String(a.content_len).padStart(6)}ch ${srcTag.padEnd(24)} ${(a.title || a.url).slice(0, 76)}`);
+      if (flags.verbose === true && a.verify_notes) log(`      ⚠ ${a.verify_notes}`);
+    }
+  }
+
+  // Itens que a curadoria deixou de fora + jobs falhos: o "porquê" de cada ausência.
+  const skips = rep.events.filter((e) => (e.stage === 'item' && e.status === 'skipped') || (e.stage === 'article' && e.status === 'skip'));
+  if (skips.length) {
+    log('');
+    log('fora do cadastro (com motivo):');
+    for (const e of skips) {
+      const d = parseDetail(e.detail) || {};
+      log(`  ${e.stage === 'item' ? `curadoria: ${d.count ?? 1}x ${d.kind}` : `artigo: ${d.reason}`} — ${(d.issue || e.url || '').slice(0, 70)}`);
+    }
+  }
+  const failed = stmts.countFrontierByState.all().find((r) => r.state === 'failed');
+  if (failed?.c) log(`frontier: ${failed.c} job(s) em estado failed (use --url p/ investigar um link)`);
+  if (flags.verbose !== true) log('dica: --verbose mostra as notas de verificação; --url <substr> audita um link.');
+}
+
+/**
+ * MODO DEBUG — `ncrawl audit [--run N] [--source <nome>] [--verbose] [--json]`.
+ * Relatório de TUDO o que a coleta perde, pula e erra (por fonte, todas as newsletters):
+ * fontes nunca semeadas/mudas, o que a listagem pulou por já capturado (vs. perdido por
+ * colisão de conteúdo), erros de fetch classificados (alvo morto × bloqueio × transitório),
+ * jobs failed/estourados, kept-blurb por motivo, pendências e picos de data suspeitos.
+ * 100% leitura (sem LLM e sem escrita) — pode rodar à vontade depois de qualquer run.
+ */
+export function cmdAudit(flags) {
+  const runId = flags.run ? Number(flags.run) : null;
+  const report = buildAuditReport({
+    runId: Number.isFinite(runId) ? runId : null,
+    source: typeof flags.source === 'string' && flags.source ? flags.source : null,
+  });
+  if (flags.json === true) {
+    // Saída de MÁQUINA: sem prefixo de timestamp (o log() carimbo-a quebraria o jq/parser).
+    console.log(JSON.stringify(report, null, 2));
+    return report;
+  }
+  for (const line of renderAudit(report, { verbose: flags.verbose === true })) log(line);
+  return report;
+}
+
+// Busca na base. Modo A (Flash, varre tudo) ou B (Pro, por tags). RETORNA os resultados (a UI captura).
+export async function cmdSearch(rest, flags) {
+  if (!HAS_LLM) {
+    errorLog(`${providerInfo().keyVar} ausente — a busca requer o caminho LLM.`);
+    process.exit(1);
+  }
+  const query = (rest || []).join(' ').trim(); // multiword sem aspas
+  if (!query) {
+    errorLog('uso: search <consulta> [--mode A|B] [--limit N] [--yes]');
+    process.exit(1);
+  }
+  const mode = String(flags.mode || 'A').toUpperCase() === 'B' ? 'B' : 'A';
+  const limit = flags.limit ? Number(flags.limit) : Infinity;
+  // Delta: por padrão busca só na última execução; --all (ou sem runs) busca no acervo inteiro.
+  // O MESMO escopo alimenta o guard e o motor (runSearch) — guard e varredura nunca divergem.
+  const scope = getSearchScope(flags);
+  if (mode === 'A') {
+    // Guard de custo: o modo A faz 1 chamada Flash por artigo (estima contra o escopo real).
+    const n = Math.min(scope.count, Number.isFinite(limit) ? limit : Infinity);
+    if (n > SEARCH_MODE_A_CONFIRM && flags.yes !== true) {
+      errorLog(
+        `Modo A vai avaliar ~${n} artigos (custo alto). Refaça com --yes, ou use --limit N / --mode B / --all.`,
+      );
+      process.exit(1);
+    }
+  }
+  return runWithLimits({ command: 'search', flags, profile: 'llm-only' }, () =>
+    runSearch(query, {
+      mode, limit, yes: flags.yes === true, all: scope.all, runId: scope.runId,
+      origin: flags.origin === 'tui' ? 'tui' : 'cli', // a TUI marca a origem p/ o histórico
+    }));
+}
+
+// ---- histórico de buscas (tabela `searches`): lido pela TUI e pela web UI local ----
+
+/** Lista o histórico (novo→antigo) com stats/escopo já parseados e custo real (llm_usage). */
+export function listSearchHistory() {
+  return stmts.listSearches.all().map((s) => ({
+    id: s.id,
+    created_at: s.created_at,
+    origin: s.origin,
+    query: s.query,
+    mode: s.mode,
+    scope: parseDetail(s.scope_json) || {},
+    stats: parseDetail(s.stats_json) || {},
+    spent_usd: s.spent_usd || 0,
+  }));
+}
+
+/**
+ * Reabre uma busca salva SEM LLM: re-hidrata os hits congelados (ids+vereditos) do acervo e
+ * remonta os buckets no MESMO shape do retorno de runSearch (a ResultsView da TUI consome
+ * direto). Ids que sumiram do acervo (purge) viram `missing` — aviso, nunca erro.
+ */
+export function getSearchHistoryEntry(id) {
+  const s = stmts.getSearch.get(id);
+  if (!s) return null;
+  const hits = parseDetail(s.hits_json) || [];
+  const rows = hits.length
+    ? stmts.searchArticlesByIds.all({ ids: JSON.stringify(hits.map((h) => h.id)) })
+    : [];
+  const byId = new Map(rows.map((a) => [a.id, a]));
+  const snippet = (t) => String(t || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+  const buckets = { noticias: [], ferramentas: [] };
+  let missing = 0;
+  for (const h of hits) {
+    const a = byId.get(h.id);
+    if (!a) {
+      missing++;
+      continue;
+    }
+    const item = {
+      id: a.id, url: a.url, title: a.title, title_pt: a.title_pt, summary_pt: a.summary_pt,
+      snippet: snippet(a.content), source_name: a.source_name || null, date_iso: a.date_iso || null,
+      relation: h.relation, score: h.score ?? h.relation, kind: h.kind ?? undefined,
+    };
+    (h.bucket === 'ferramentas' || (!h.bucket && h.kind === 'tool') ? buckets.ferramentas : buckets.noticias)
+      .push(item);
+  }
+  const stats = parseDetail(s.stats_json) || {};
+  return {
+    historyId: s.id,
+    created_at: s.created_at,
+    origin: s.origin,
+    spent_usd: s.spent_usd || 0,
+    scope: parseDetail(s.scope_json) || {},
+    missing,
+    query: s.query,
+    mode: s.mode,
+    scanned: stats.scanned ?? null,
+    total: stats.total ?? null,
+    relevant: (buckets.noticias.length + buckets.ferramentas.length),
+    skipped: stats.skipped || 0,
+    buckets,
+  };
+}
+
+/** Apaga uma busca do histórico (ou todas, sem id). Retorna quantas linhas saíram. */
+export function deleteSearchHistory(id = null) {
+  const info = id == null ? stmts.clearSearches.run() : stmts.deleteSearch.run(id);
+  return info.changes;
+}
+
+// Limites de execução (orçamento/paralelismo/RAM). `limits set` persiste em NC_HOME/.env (mesmo
+// arquivo e helper do `key set`); `limits show` (default) mostra os efetivos + origem + gasto.
+export function cmdLimits(rest, flags) {
+  const sub = String(rest[0] || '').toLowerCase();
+
+  if (sub === 'set') {
+    let n = 0;
+    if (flags.budget != null) {
+      const v = Number(flags.budget);
+      if (!Number.isFinite(v) || v < 0) {
+        errorLog(`--budget inválido (USD >= 0, 0 = ilimitado): ${flags.budget}`);
+        process.exit(1);
+      }
+      upsertEnvVar('BUDGET_USD', String(v));
+      n++;
+    }
+    if (flags.parallel != null) {
+      const v = Number(flags.parallel);
+      if (!Number.isInteger(v) || v < 0) {
+        errorLog(`--parallel inválido (inteiro >= 1, ou 0 = auto pelos núcleos): ${flags.parallel}`);
+        process.exit(1);
+      }
+      upsertEnvVar('MAX_PARALLEL', String(v));
+      n++;
+    }
+    if (flags['ram-max-pct'] != null) {
+      const v = Number(flags['ram-max-pct']);
+      if (!Number.isFinite(v) || v < 10 || v > 95) {
+        errorLog(`--ram-max-pct inválido (10..95): ${flags['ram-max-pct']}`);
+        process.exit(1);
+      }
+      upsertEnvVar('RAM_MAX_PCT', String(v));
+      n++;
+    }
+if (flags['llm-cap'] != null) {
+      const v = Number(flags['llm-cap']);
+      if (!Number.isInteger(v) || v < 0) {
+        errorLog(`--llm-cap inválido (inteiro >= 0; 0 = sem teto calibrado): ${flags['llm-cap']}`);
+        process.exit(1);
+      }
+      upsertEnvVar('GOVERNOR_LLM_CAP', String(v));
+      n++;
+    }
+    if (flags['ram-free-pct'] != null) {
+      const v = Number(flags['ram-free-pct']);
+      if (!Number.isFinite(v) || v <= 0 || v >= 100) {
+        errorLog(`--ram-free-pct inválido (0..100): ${flags['ram-free-pct']}`);
+        process.exit(1);
+      }
+      upsertEnvVar('RAM_FREE_TARGET_PCT', String(v));
+      n++;
+    }
+    if (flags['cpu-free-pct'] != null) {
+      const v = Number(flags['cpu-free-pct']);
+      if (!Number.isFinite(v) || v <= 0 || v >= 100) {
+        errorLog(`--cpu-free-pct inválido (0..100): ${flags['cpu-free-pct']}`);
+        process.exit(1);
+      }
+      upsertEnvVar('CPU_FREE_TARGET_PCT', String(v));
+      n++;
+    }
+    if (!n) {
+      errorLog('uso: ncrawl limits set [--budget USD] [--parallel N] [--ram-max-pct P] [--llm-cap N] [--ram-free-pct P] [--cpu-free-pct P]');
+      process.exit(1);
+    }
+    log(`limites salvos em ${ENV_PATH} (valem p/ os próximos runs; flags por-run têm precedência)`);
+    return;
+  }
+
+  // show (default): valor efetivo + origem (env = setado no .env/shell; auto = derivado).
+  const origem = (k) => (process.env[k] != null && process.env[k] !== '' ? 'env' : 'auto');
+  const N = MAX_PARALLEL;
+  log('— limites —');
+  log(`parallel:    ${N} (${origem('MAX_PARALLEL')}; auto = núcleos clamp 4..64 = ${defaultParallel()})`);
+  log(`budget:      ${BUDGET_USD > 0 ? `US$ ${BUDGET_USD.toFixed(2)}/run` : 'ilimitado'} (${origem('BUDGET_USD')})`);
+  log(`ram-max-pct: ${RAM_MAX_PCT}% (${origem('RAM_MAX_PCT')})`);
+  log(`ram-free:    >=${RAM_FREE_TARGET_PCT}% livre (${origem('RAM_FREE_TARGET_PCT')})`);
+  log(`cpu-free:    >=${CPU_FREE_TARGET_PCT}% ocioso (${origem('CPU_FREE_TARGET_PCT')})`);
+  log(
+    `lanes (perfil crawl):    llm=${N} fetch=${Math.ceil(N / 4)} render<=${Math.ceil(N / 4)} (RAM manda)`,
+  );
+  log(`lanes (perfil llm-only): llm=${N}`);
+  log(
+    `calibração llm: ${GOVERNOR_LLM_CAP > 0 ? `teto <= ${GOVERNOR_LLM_CAP} (${origem('GOVERNOR_LLM_CAP')})` : 'livre (perfil manda)'} — 429 no run baixa e recalibra; ` +
+      `limpe com "ncrawl limits set --llm-cap 0"`,
+  );
+  try {
+    const t = stmts.sumUsageTotal.get();
+    log(`gasto all-time: US$ ${t.usd.toFixed(4)} em ${t.n} chamadas LLM`);
+    const runs = stmts.listRuns.all(10);
+    if (runs.length) {
+      log('últimos runs:');
+      for (const r of runs) {
+        const cap = r.budget_usd != null ? `/${Number(r.budget_usd).toFixed(2)}` : '';
+        log(`  #${r.id} ${r.command} — US$ ${Number(r.spent_usd).toFixed(4)}${cap} (${r.status}, ${r.started_at})`);
+      }
+    }
+  } catch {
+    /* ledger vazio/DB antigo: os limites acima já foram mostrados */
+  }
+log('uso: ncrawl limits set [--budget USD] [--parallel N] [--ram-max-pct P] [--llm-cap N] [--ram-free-pct P] [--cpu-free-pct P]');
+}
+
+// Sobe o buscador web local (React zero-build, filtros sobre a base) e fica no ar até
+// SIGINT/SIGTERM. A TUI NÃO passa por aqui: chama startWebServer direto p/ ser dona do
+// ciclo de vida (parar por tecla, sem sinal).
+export async function cmdWeb(flags) {
+  let port; // undefined = WEB_PORT (config)
+  if (flags.port !== undefined) {
+    port = Number(flags.port);
+    if (flags.port === true || !Number.isInteger(port) || port < 0 || port > 65535) {
+      errorLog(`--port inválido: ${flags.port} (use 0–65535; 0 = porta efêmera)`);
+      process.exit(1);
+    }
+  }
+  const srv = await startWebServer({ port, open: flags['no-open'] !== true });
+  log('Ctrl+C encerra o buscador.');
+  await new Promise((resolve) => {
+    process.once('SIGINT', resolve);
+    process.once('SIGTERM', resolve);
+  });
+  log('encerrando o buscador web…');
+  await srv.close();
+}
+
+// Gerência da chave LLM, PROVIDER-AWARE. `key set <chave>` valida (probe do provedor) e grava em
+// NC_HOME/.env; `key test` valida a chave do provedor. `--provider openrouter|deepseek` escolhe o
+// provedor; sem a flag, usa o ATIVO (LLM_PROVIDER) — `key set <chave>` sem flag continua salvando
+// OPENROUTER_API_KEY e validando na OpenRouter (comportamento de sempre). Sem subcomando: mostra o
+// estado. A validação impede salvar uma chave ruim.
+export async function cmdKey(rest, flags) {
+  // `rest` já vem SEM o "key" (index.js faz rest.shift()): rest[0]=subcomando, rest[1]=chave.
+  const sub = String(rest[0] || '').toLowerCase();
+  // --provider: inválido/ausente = provedor ativo (mesma regra de clamp do config.js).
+  const provider = String(flags.provider || LLM_PROVIDER).toLowerCase() === 'deepseek' ? 'deepseek' : 'openrouter';
+  const info = providerInfoFor(provider);
+
+  if (sub === 'set') {
+    const key = rest[1] || (typeof flags.key === 'string' ? flags.key : '');
+    if (!key) {
+      errorLog('uso: ncrawl key set <CHAVE> [--provider openrouter|deepseek]');
+      process.exit(1);
+    }
+    log(`validando a chave na ${info.name} (probe)…`);
+    const r = await probeProviderKey(key, provider);
+    if (!r.ok) {
+      errorLog(
+        `chave INVÁLIDA (HTTP ${r.status || '—'}${r.reason ? `: ${r.reason}` : ''}) — nada foi salvo.`,
+      );
+      process.exit(1);
+    }
+    const { updated, file } = upsertEnvVar(info.keyVar, key);
+    setRuntimeKey(key, provider); // vale JÁ neste processo (a TUI encadeia comandos sem reiniciar)
+    log(`chave válida ✓ ${maskKey(key)} — ${updated ? 'atualizada' : 'salva'} em ${file}`);
+    return;
+  }
+
+  if (sub === 'test') {
+    const cur = provider === 'deepseek' ? DEEPSEEK_API_KEY : OPENROUTER_API_KEY;
+    if (!cur) {
+      errorLog(`nenhuma chave ${info.name} configurada. Rode: ncrawl key set <CHAVE>  (será salva em ${ENV_PATH})`);
+      process.exit(1);
+    }
+    log(`testando a chave atual ${maskKey(cur)} (${info.name})…`);
+    const r = await probeProviderKey(cur, provider);
+    if (!r.ok) {
+      errorLog(`chave INVÁLIDA (HTTP ${r.status || '—'}). Rode: ncrawl key set <CHAVE>`);
+      process.exit(1);
+    }
+    log('chave válida ✓ (HTTP 200)');
+    return;
+  }
+
+  // Sem subcomando: estado atual + uso (não é erro). Mostra o provedor ATIVO e a chave de CADA
+  // provedor (se setada) — o usuário vê o que está configurado num comando só.
+  log(`provedor ativo: ${providerInfo().name}`);
+  for (const p of ['openrouter', 'deepseek']) {
+    const pi = providerInfoFor(p);
+    const k = p === 'deepseek' ? DEEPSEEK_API_KEY : OPENROUTER_API_KEY;
+    log(k ? `${pi.name}: chave configurada ${maskKey(k)}` : `${pi.name}: nenhuma chave (${pi.keyVar})`);
+  }
+  log(`arquivo previsível: ${ENV_PATH}`);
+  log('uso: ncrawl key set <CHAVE> [--provider openrouter|deepseek]   valida no provedor e salva');
+  log('     ncrawl key test [--provider openrouter|deepseek]          valida a chave do provedor');
+}
+
+// Deploy do site: a lógica vive em deploy.js (export → commit → push → ESPERA a publicação).
+// Aqui só o invólucro do CLI: mensagem de erro humana + código de saída. `deploySnapshot` é o nome
+// que a UI importa (um lugar só, como getStatus).
+export { runDeploy as deploySnapshot };
+
+export async function cmdDeploy(flags) {
+  try {
+    const res = await runDeploy(flags);
+    // Não confirmou a publicação = o comando não cumpriu o que promete: sai != 0 p/ scripts verem.
+    if (res.status === 'timeout') {
+      errorLog(
+        `o push foi feito, mas o site não publicou dentro do limite (${Math.round(res.elapsedMs / 1000)}s).`,
+      );
+      log(`acompanhe o build em https://vercel.com — ou rode "ncrawl deploy --force" p/ tentar de novo.`);
+      process.exit(1);
+    }
+  } catch (e) {
+    errorLog(e instanceof DeployError ? e.message : `deploy falhou: ${e.message}`);
+    // `.hint` é a saída acionável e vem tanto do DeployError quanto do SnapshotShrinkError
+    // (export-web.js) — sempre que existir, ela é a última linha útil p/ o usuário.
+    // A linha genérica NÃO pode mais afirmar "o export já foi feito": o guard anti-encolhimento
+    // BLOQUEIA o export antes de escrever um byte, e nesse caso a frase era simplesmente falsa.
+    // O que é verdade em qualquer falha: o deploy re-exporta do zero na próxima tentativa.
+    if (e?.hint) log(e.hint);
+    else if (!(e instanceof DeployError)) log('nada foi publicado — corrija o problema e rode `ncrawl deploy` de novo (o export é refeito do zero a cada tentativa).');
+    process.exit(1);
+  }
+}

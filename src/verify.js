@@ -1,0 +1,202 @@
+// Verificação pós-cadastro: cada artigo salvo recebe um veredito ok|suspect|junk + notas
+// (persistidos em articles.verify_status/verify_notes e no trace de events) — é o "conferir o
+// que foi feito a cada cadastro". Heurística barata primeiro (anti-bot óbvio), LLM (Flash) no
+// resto, em paralelo pela lane llm. Idempotente (verify_status IS NULL) e retomável — espelha
+// summarize.js. Nunca apaga: junk é marcado e aparece no `ncrawl inspect`.
+import pLimit from 'p-limit';
+import { stmts } from './db.js';
+import { verifyRecordLLM, cleanArticleContent } from './llm.js';
+import { isBlockedPage, applyJunkSpans, ensurePlainText } from './clean.js';
+import { logEvent } from './events.js';
+import { VERIFY_CONCURRENCY, VERIFY_MAX_CHARS, CLEAN_MAX_CHARS } from './config.js';
+import { stageWindow } from './governor.js';
+import { shouldStop, getBudgetState } from './budget.js';
+import { sha256, log, errorLog } from './util.js';
+
+// ---- heurística determinística pré-LLM: corpo ABRINDO com menu de navegação ----
+// Padrão isBlockedPage: barata e sem custo de LLM. Caso real (P4): o corpo do artigo da
+// Drizzle no Node Weekly 637 começava com "Website • / Docs • / Community • / Blog • /
+// Changelog" e a verificação deu "ok" — o verificador não distinguia menu no topo. Dispara
+// só no INÍCIO do corpo: ≥3 separadores de menu (• · | /, inclusive os pares "• /") nos
+// primeiros ~120 chars, com os tokens (itens de menu) curtos e sem marca de URL (':', '.')
+// — "https://…" no início não pode contar como menu. Verdict "suspect" é barato (advisory;
+// o reclean pode remover o menu e o re-verify atualiza o veredito), então falso-positivo
+// ocasional de prosa com separadores é aceitável.
+const NAV_MENU_HEAD = 120;
+const NAV_TOKEN_MAX = 24;
+export function startsWithNavMenu(text) {
+  const parts = String(text || '').slice(0, NAV_MENU_HEAD).split(/\s*(?:[•·|/]\s*)+/);
+  if (parts.length < 4) return false; // menos de 3 separadores
+  for (let i = 0; i < Math.min(parts.length, 4); i++) {
+    const t = parts[i].trim();
+    // token vazio só é aceito no INÍCIO (menu pode abrir com "• Home • …"); no meio, vazio
+    // = separadores duplos/URL
+    if ((i > 0 && !t) || t.length > NAV_TOKEN_MAX || /[:.]/.test(t)) return false;
+  }
+  return true;
+}
+
+/**
+ * Verifica UMA ficha (heurística grátis anti-bot -> LLM), persiste o veredito + notas e loga o
+ * evento. Compartilhado pelo sweep (verifyPending) e pela verificação em STREAMING do crawl
+ * (commands.js), logo após cada enriquecimento. `a` precisa de {id,url,title,kind,blurb,content}.
+ */
+export async function verifyArticleRow(a, { runId = null } = {}) {
+  let verdict;
+  let problems;
+  if (isBlockedPage(a.title, a.content)) {
+    verdict = 'junk';
+    problems = ['página de desafio anti-bot salva como conteúdo'];
+  } else if (startsWithNavMenu(a.content)) {
+    // Heurística pré-LLM: corpo abrindo com menu de navegação (P4 — falso-positivo real da
+    // Drizzle). Determinístico e sem custo; o reclean pode remover o menu e o re-verify
+    // (verifyArticleRow de novo) atualiza o veredito.
+    verdict = 'suspect';
+    problems = ['conteúdo começa com menu de navegação'];
+  } else {
+    const out = await verifyRecordLLM({
+      url: a.url,
+      kind: a.kind,
+      title: a.title,
+      blurb: a.blurb,
+      content: String(a.content || '').slice(0, VERIFY_MAX_CHARS),
+    });
+    verdict = out.verdict;
+    problems = out.problems;
+  }
+  stmts.setVerify.run({
+    id: a.id,
+    verify_status: verdict,
+    verify_notes: problems.length ? problems.join('; ') : null,
+  });
+  logEvent({ runId, url: a.url, stage: 'verify', status: verdict, detail: problems.length ? { problems } : null });
+  return { verdict, problems };
+}
+
+/**
+ * Verifica os artigos sem veredito (ou todos, com force). `runId` escopa o sweep às fichas DESTA
+ * run (pós-crawl); sem ele varre o pendente global (usado pelo `finish`). Piso legado
+ * (db.js LEGACY_FLOOR): só artigos DESTA era; includeLegacy=true (o `--include-legacy --yes` do
+ * finish) abre a porta p/ o acervo anterior — nunca é o default.
+ * Retorna { verified, byVerdict }.
+ */
+export async function verifyPending({ limit = Infinity, force = false, includeLegacy = false, runId = null } = {}) {
+  const lim = Number.isFinite(limit) ? limit : -1; // SQLite: LIMIT -1 = sem limite
+  const params = { lim, includeLegacy, runId };
+  const rows = force
+    ? stmts.listArticlesForReverifySweep.all(params)
+    : runId != null
+      ? stmts.listArticlesToVerifyForRun.all(params)
+      : stmts.listArticlesToVerify.all(params);
+  if (!rows.length) {
+    log('verify: nada a verificar.');
+    return { verified: 0, byVerdict: {} };
+  }
+  const runIdEvent = getBudgetState().runId ?? null; // events apontam p/ a run que VERIFICOU
+  log(
+    `verify: ${rows.length} artigo(s)${runId != null ? ` (run ${runId})` : ''} — veredito ok|suspect|junk, force=${force}` +
+      `${includeLegacy ? ', +legado' : ''}.`,
+  );
+
+  const gate = pLimit(stageWindow(VERIFY_CONCURRENCY));
+  const byVerdict = {};
+  let done = 0;
+  let skipped = 0;
+  await Promise.all(
+    rows.map((a) =>
+      gate(async () => {
+        if (shouldStop()) {
+          skipped++;
+          return; // orçamento: a linha NULL segue retomável via `ncrawl finish`
+        }
+        try {
+          const { verdict, problems } = await verifyArticleRow(a, { runId: runIdEvent });
+          byVerdict[verdict] = (byVerdict[verdict] || 0) + 1;
+          done++;
+          if (verdict !== 'ok') {
+            log(`verify ${verdict} [${done}/${rows.length}] ${(a.title || a.url).slice(0, 60)} — ${problems.join('; ').slice(0, 120)}`);
+          }
+        } catch (e) {
+          if (e?.code === 'BUDGET_EXCEEDED') {
+            skipped++;
+            return;
+          }
+          errorLog(`verify falhou (${a.url}): ${e.message}`);
+        }
+      }),
+    ),
+  );
+
+  const parts = Object.entries(byVerdict).map(([k, n]) => `${k}=${n}`).join(' ');
+  log(
+    `verify concluído: ${done}/${rows.length} (${parts || '—'})` +
+      `${skipped ? ` (${skipped} pulados por orçamento — retome com \`ncrawl finish\`)` : ''}.`,
+  );
+  return { verified: done, byVerdict };
+}
+
+/**
+ * Re-limpa os vereditos 'suspect' com um passe FORTE (Pro, stage articleReclean) e re-verifica —
+ * a melhoria da seção 7: um "falso-sujo" auditável pode virar 'ok' com uma limpeza melhor. Mesma
+ * mecânica do pré-save (junk_spans -> remoção local exata + guarda anti over-deletion + texto puro),
+ * agora com o modelo caro. Idempotente/retomável (o item segue 'suspect' se pular por orçamento).
+ * Piso legado: só os suspect DESTA era; includeLegacy=true (`reclean --include-legacy --yes`)
+ * inclui os do acervo anterior.
+ */
+export async function recleanSuspects({ limit = Infinity, includeLegacy = false } = {}) {
+  const lim = Number.isFinite(limit) ? limit : -1;
+  const rows = stmts.listSuspectArticles.all({ lim, includeLegacy });
+  if (!rows.length) {
+    log('reclean: nenhum suspect a reprocessar.');
+    return { recleaned: 0, upgraded: 0 };
+  }
+  const runId = getBudgetState().runId ?? null;
+  log(`reclean: ${rows.length} suspect(s) — limpeza forte (Pro) + re-verify${includeLegacy ? ' (+legado)' : ''}.`);
+
+  const gate = pLimit(stageWindow(VERIFY_CONCURRENCY));
+  let recleaned = 0;
+  let upgraded = 0;
+  let skipped = 0;
+  await Promise.all(
+    rows.map((a) =>
+      gate(async () => {
+        if (shouldStop()) {
+          skipped++;
+          return; // orçamento: o item segue 'suspect', retomável com `ncrawl reclean`
+        }
+        try {
+          const full = String(a.content || '');
+          const head = full.slice(0, CLEAN_MAX_CHARS);
+          const tail = full.length > CLEAN_MAX_CHARS ? full.slice(CLEAN_MAX_CHARS) : '';
+          const out = await cleanArticleContent({ title: a.title, content: head, stage: 'articleReclean' });
+          const res = applyJunkSpans(head, out.junk_spans);
+          if (!res.rejected && res.applied > 0) {
+            const content = ensurePlainText(res.text + tail);
+            const hash = sha256(content);
+            const dup = stmts.getArticleByHash.get(hash);
+            if (!dup || dup.id === a.id) {
+              stmts.setContentCleaned.run({ id: a.id, content, content_hash: hash });
+              a.content = content; // o re-verify abaixo já enxerga o texto novo
+              recleaned++;
+              logEvent({ runId, url: a.url, stage: 'clean', status: 'reclean', detail: { spans: res.applied, removidos: res.removed } });
+            }
+          }
+          const { verdict } = await verifyArticleRow(a, { runId });
+          if (verdict === 'ok') upgraded++;
+        } catch (e) {
+          if (e?.code === 'BUDGET_EXCEEDED') {
+            skipped++;
+            return;
+          }
+          errorLog(`reclean falhou (${a.url}): ${e.message}`);
+        }
+      }),
+    ),
+  );
+
+  log(
+    `reclean concluído: ${recleaned} re-limpo(s), ${upgraded} viraram ok` +
+      `${skipped ? ` (${skipped} pulados por orçamento — retome com \`ncrawl reclean\`)` : ''}.`,
+  );
+  return { recleaned, upgraded };
+}

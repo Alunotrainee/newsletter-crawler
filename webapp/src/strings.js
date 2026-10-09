@@ -1,0 +1,630 @@
+// Toda a CASCA da UI, por idioma (pt/en). O acervo, os resumos e as tags são PT-BR (são
+// DADOS, não interface) — por isso não entram aqui. Detecção/troca de idioma: ver i18n.jsx.
+// Regra: as duas tabelas têm EXATAMENTE as mesmas chaves (test/i18n.test.js checa paridade).
+
+const pt = {
+  brand: 'Acervo',
+  tagline: 'newsletters de tecnologia',
+
+  // busca (texto local + IA opcional)
+  searchPlaceholder: 'Filtrar por texto…',
+  searchAi: 'Buscar com IA (semântica)',
+  searchAiShort: 'IA',
+  searchClear: 'limpar texto',
+  aiNoKeyHint: 'Sem chave você busca por texto e filtros. Adicione uma chave (OpenRouter ou DeepSeek) para a busca inteligente (IA).',
+  deepToggle: 'Busca profunda',
+  deepHint: 'lê o conteúdo completo de cada artigo do escopo (1 chamada por artigo)',
+  softHint: 'julga títulos e resumos em lotes (1 chamada a cada ~40 artigos)',
+  strictToggle: 'Estrito',
+  strictHint: 'Ligue para ver só as respostas centrais (mais precisas); desligado, inclui também os resultados parecidos.',
+  specLabel: 'Entendi sua busca como',
+  specHidden: (n) => `+${n} adjacente${n === 1 ? '' : 's'} oculto${n === 1 ? '' : 's'} · desligue “Estrito”`,
+  searching: 'buscando…',
+  cancel: 'Cancelar',
+  // loader da busca IA — progresso nível-ARTIGO (barra + %, X/Y, relevantes, custo, ETA, falhas)
+  aiUnitArticles: 'artigos',
+  aiUnitRelevant: 'relevante',
+  aiUnitRelevants: 'relevantes',
+  aiEta: (label) => `~${label} restantes`,
+  aiFailed: (n) => `${n} não analisado${n === 1 ? '' : 's'}`,
+  aiDeepWarning: 'a busca profunda pode levar alguns minutos',
+  aiResults: (relevant, scanned) => `${relevant} relevante${relevant === 1 ? '' : 's'} de ${scanned} analisado${scanned === 1 ? '' : 's'}`,
+  aiTruncated: (max) => `resultados limitados aos ${max} melhores`,
+  aiCost: (usd) => `custo real: ${usd}`,
+  aiCostUnknown: 'custo real: —',
+  aiClear: 'Limpar busca',
+  aiEmptyScope: 'O escopo atual não tem nenhum artigo — ajuste os filtros.',
+  aiError: 'A busca falhou. Verifique sua conexão e tente de novo.',
+  aiRetry: 'Tentar de novo',
+  aiRelationDirect: 'direto',
+  aiRelationSimilar: 'relacionado',
+  // retomada da busca (checkpoint no localStorage): reload/fechar-e-reabrir a aba continua de onde parou
+  aiResuming: 'retomando busca…',
+  aiPaused: 'Busca interrompida — dá pra retomar de onde parou.',
+  aiResumeAction: 'Retomar',
+  aiResumeDiscard: 'Descartar',
+
+  // histórico de buscas (localStorage; toda busca concluída entra sozinha)
+  historyTitle: 'Histórico de buscas',
+  historyOpen: 'Histórico de buscas',
+  historyEmpty: 'Nenhuma busca salva ainda — toda busca com IA aparece aqui.',
+  historyRecent: 'Buscas recentes',
+  historyReopen: 'Abrir o resultado salvo (sem custo)',
+  historyRerun: 'Rodar de novo',
+  historyDelete: 'Apagar',
+  historyClear: 'Limpar histórico',
+  historyClearConfirm: 'Apagar tudo? Clique de novo.',
+  historyFrozen: (when) => `salva em ${when}`,
+  historyMissing: (n) => `${n} item${n === 1 ? '' : 's'} fora do acervo`,
+  historyStats: (rel, total) => `${rel}/${total}`,
+
+  // confirmação de custo
+  confirmTitle: 'Confirmar busca com IA',
+  confirmBody: (count, calls) =>
+    `O escopo tem ${count} artigo${count === 1 ? '' : 's'} — serão ~${calls} chamada${calls === 1 ? '' : 's'} de IA.`,
+  confirmGo: 'Rodar busca',
+  confirmCancel: 'Agora não',
+
+  // chave OpenRouter
+  keyTitle: 'Chave da OpenRouter',
+  keyBody:
+    'A busca digitada usa IA e precisa da SUA chave da OpenRouter. Ela fica salva só neste navegador (localStorage) e as chamadas vão direto para a OpenRouter — nada passa por servidor nosso.',
+  keyHint: 'Dica: crie uma chave dedicada com limite de crédito em openrouter.ai/keys.',
+  keyPlaceholder: 'sk-or-…',
+  keySave: 'Validar e salvar',
+  keySaving: 'validando…',
+  keyInvalid: 'Chave inválida — a OpenRouter recusou. Confira e tente de novo.',
+  keyNetwork: 'Não deu para validar (rede). Tente de novo.',
+  keyForget: 'Esquecer chave salva',
+  keyExpired: 'A chave salva foi recusada pela OpenRouter (expirou ou foi revogada?). Cole outra.',
+  keyManageTitle: 'Chave da OpenRouter salva',
+  keyManageBody: 'Você já tem uma chave salva neste navegador — a busca com IA está liberada. Cole outra para trocar, ou esqueça a atual.',
+  keyBtnHas: 'Chave da OpenRouter salva — gerenciar',
+  keyBtnMissing: 'Adicionar chave da OpenRouter (busca com IA)',
+  keySaved: 'chave salva ✓',
+
+  // provedor da chave (BYOK): openrouter (default) | deepseek direto
+  keyProviderLabel: 'Provedor',
+  keyProviderOr: 'OpenRouter',
+  keyProviderDeepSeek: 'DeepSeek',
+  keyTitleDs: 'Chave da DeepSeek',
+  keyBodyDs:
+    'A busca digitada usa IA e precisa da SUA chave da DeepSeek (platform.deepseek.com). Ela fica salva só neste navegador (localStorage) e as chamadas vão direto para a DeepSeek — nada passa por servidor nosso.',
+  keyHintDs: 'Dica: crie uma chave dedicada em platform.deepseek.com (API Keys).',
+  keyPlaceholderDs: 'sk-…',
+  keyInvalidDs: 'Chave inválida — a DeepSeek recusou. Confira e tente de novo.',
+  keyExpiredDs: 'A chave salva foi recusada pela DeepSeek (expirou ou foi revogada?). Cole outra.',
+  keyManageTitleDs: 'Chave da DeepSeek salva',
+  keyManageBodyDs: 'Você já tem uma chave da DeepSeek salva neste navegador — a busca com IA está liberada. Cole outra para trocar, ou esqueça a atual.',
+  keyBtnHasDs: 'Chave da DeepSeek salva — gerenciar',
+  keyBtnMissingDs: 'Adicionar chave da DeepSeek (busca com IA)',
+
+  // gerenciador de chaves (as DUAS chaves convivem; a ativa decide o provedor da busca)
+  keyTitleAll: 'Chaves da busca IA (BYOK)',
+  keyBodyAll:
+    'Guarde aqui as chaves dos dois provedores — OpenRouter e DeepSeek direto. Elas ficam só neste navegador (localStorage) e as chamadas vão direto à API, nada passa por servidor nosso. Salvar uma chave a ativa; a busca usa a chave ativa.',
+  keyManageBodyAll:
+    'Você já tem chave(s) salva(s) neste navegador. Teste cada uma, cole outra para trocar, ative a que quiser usar ou esqueça a que não usa mais.',
+  keyHintAll: 'Dicas: crie chaves dedicadas com limite de crédito. Testar valida sem salvar; salvar ativa o provedor.',
+  keyTest: 'Testar',
+  keyTesting: 'testando…',
+  keyTestOk: 'chave válida ✓',
+  keyActivate: 'Usar esta chave',
+  keyActive: 'ativa',
+  keyNoKey: 'sem chave',
+  keyNoKeyDs: 'Nenhuma chave da DeepSeek salva — cole uma para poder ativar.',
+
+  // filtros
+  filters: 'Filtros',
+  filterSource: 'Fontes',
+  filterAllSources: 'Todas as fontes',
+  filterSourcesHint: 'Nenhuma marcada = todas',
+  filterPeriod: 'Período',
+  filterFrom: 'de',
+  filterTo: 'até',
+  last7: '7 dias',
+  last30: '30 dias',
+  filterFacets: 'Tags',
+  filterVerify: 'Verificação',
+  verifyAll: 'Todas',
+  showJunk: 'Mostrar descartados',
+  showJunkHint: 'Inclui itens sem matéria (stubs, tweets, páginas de imagem)',
+  facetTagUnavailable: 'Nenhum item com os filtros atuais',
+  clearFilters: 'Limpar filtros',
+  showMore: (n) => `+${n} mais`,
+  showLess: 'mostrar menos',
+  activeFilters: 'filtros ativos',
+
+  // grid / cards
+  kindLabel: 'Tipo de item',
+  results: (n) => `${n} artigo${n === 1 ? '' : 's'}`,
+  articleWord: (n) => (n === 1 ? 'artigo' : 'artigos'),
+  sourceFallback: (id) => `fonte ${id}`,
+  pillSince: (d) => `desde ${d}`,
+  pillUntil: (d) => `até ${d}`,
+  loadMore: 'Carregar mais',
+  emptyBase: 'O acervo está vazio — rode `ncrawl export --format web` para gerar os dados.',
+  emptyFiltered: 'Nada por aqui com esses filtros.',
+  loadError: 'Não deu para carregar o acervo.',
+  retry: 'Recarregar',
+  readOriginal: 'Ler o artigo original',
+  openArticle: 'Abrir artigo',
+  playAll: 'Ouvir resultados',
+  stopPlayback: 'Parar áudio',
+  playSummary: 'Ouvir resumo',
+  close: 'Fechar',
+  loading: 'carregando…',
+  noSummary: 'sem resumo em português (pendente de processamento)',
+
+  // topbar / tema / idioma / ajuda
+  themeToLight: 'Tema claro',
+  themeToDark: 'Tema escuro',
+  langLabel: 'Idioma',
+  langSwitchTo: (name) => `Mudar para ${name}`,
+  helpTitle: 'Como funciona',
+  costBadgeTitle: 'Custo de IA acumulado da coleta do acervo',
+  updatedAt: (d) => `acervo de ${d}`,
+
+  // tutorial (onboarding estilo "Welcome" — passos de alto nível, curtos e opcionais)
+  tutorialAria: 'Tour de introdução ao Acervo',
+  tutorialStep: (i, n) => `Passo ${i} de ${n}`,
+  tutorialSkip: 'Pular',
+  tutorialBack: 'Voltar',
+  tutorialNext: 'Continuar',
+  tutorialDone: 'Começar',
+  tutorialGoTo: (i) => `Ir para o passo ${i}`,
+  tutorialSteps: [
+    {
+      icon: 'sparkle',
+      title: 'Bem-vindo ao Acervo',
+      body: 'Um acervo pesquisável de newsletters de tecnologia. As melhores edições, reunidas, limpas e organizadas — prontas pra explorar.',
+    },
+    {
+      icon: 'search',
+      title: 'Busque do seu jeito',
+      body: 'Filtre por texto na hora, ou ative a busca por IA (semântica) pra encontrar por ideia, não só por palavra exata. A busca com IA usa a sua própria chave (OpenRouter ou DeepSeek).',
+    },
+    {
+      icon: 'sliders',
+      title: 'Refine com filtros',
+      body: 'Combine fonte, período e tags, e alterne entre Notícias, Ferramentas e Releases pra chegar exatamente no que importa.',
+    },
+    {
+      icon: 'cards',
+      title: 'Leia sem ruído',
+      body: 'Cada card traz um resumo em português. Abra o artigo pra ver o conteúdo limpo e o link direto pra fonte original.',
+    },
+    {
+      icon: 'rocket',
+      title: 'Transparente e no seu controle',
+      body: 'A busca por IA é BYOK: você vê o custo real de cada consulta e nada passa por servidor nosso. Ajuste tema e idioma quando quiser — é só começar.',
+    },
+  ],
+
+  // página /admin (backend Vercel: análise JEV × webhook) — mesma regra de paridade pt/en
+  admin: {
+    title: 'Admin',
+    subtitle: 'análise JEV × webhook',
+    booting: 'carregando…',
+    loginTitle: 'Entrar',
+    user: 'Usuário',
+    password: 'Senha',
+    loginBtn: 'Entrar',
+    loginError: 'usuário ou senha inválidos',
+    logout: 'Sair',
+    notConfiguredTitle: 'Servidor não configurado',
+    notConfiguredBody:
+      'Defina ADMIN_USER, ADMIN_PASSWORD e ADMIN_SESSION_SECRET nas Environment Variables do projeto na Vercel e faça redeploy.',
+    keyMissing: 'Falta a OPENROUTER_API_KEY no backend (Environment Variables da Vercel).',
+    kvMissing:
+      'Sem Vercel KV/Upstash associado ao projeto: a configuração e as runs não persistem. Crie a base no dashboard da Vercel e associe-a.',
+    configSourceEnv: 'configuração fixa lida das env (sem KV)',
+    analysisTitle: 'Análise JEV',
+    inputLabel: 'Input (o seu interesse)',
+    inputHint: 'Descreva o que interessa — o JEV decide notícia a notícia se combina. Ex.: “agentes de IA e MCP”.',
+    inputPlaceholder: 'ex.: agentes de IA, LLMs e MCP',
+    periodLabel: 'Período (mesmo filtro do site)',
+    fromLabel: 'de',
+    toLabel: 'até',
+    sourcesLabel: 'Fontes',
+    sourcesAll: 'todas as fontes',
+    kindLabel: 'Tipo',
+    kindAll: 'todos',
+    kindNews: 'notícias',
+    kindTool: 'ferramentas',
+    kindRelease: 'releases',
+    thresholdLabel: 'Limiar de separação',
+    thresholdHint: 'uma notícia é separada quando a probabilidade calibrada do JEV ≥ limiar.',
+    batchLabel: 'Tamanho do lote',
+    batchHint: 'artigos por pedido ao JEV (1–25, default 25). Os lotes são disparados 30 por vez.',
+    save: 'Guardar',
+    saved: 'guardado',
+    saveFailed: 'não foi possível guardar',
+    estimate: (n, usd) => `${n} artigos no escopo · custo estimado ≈ ${usd}`,
+    scopeLoading: 'a calcular o escopo…',
+    webhookTitle: 'Webhook de disparo',
+    webhookLabel: 'URL',
+    webhookHint: 'as notícias separadas são enviadas num JSON array (POST) para esta URL.',
+    webhookTest: 'Testar',
+    webhookTestOk: (status) => `teste enviado (HTTP ${status})`,
+    webhookTestBad: (msg) => `falha no teste: ${msg}`,
+    webhookMissing: 'sem webhook cadastrado — nada será disparado',
+    runBtn: 'Executar análise',
+    runBusy: 'a executar…',
+    runProgress: (done, total) => `batch ${done} de ${total}`,
+    runTitle: 'Execução',
+    runStatusRunning: 'em curso',
+    runStatusDone: 'concluída',
+    runStatusError: 'erro',
+    runScanned: (n) => `${n} analisadas`,
+    runSeparadas: (n) => `${n} notíci${n === 1 ? 'a separada' : 'as separadas'}`,
+    runDispatchOk: (n) => `${n} notíci${n === 1 ? 'a disparada' : 'as disparadas'} para o webhook`,
+    runDispatchFail: (msg) => `o disparo falhou: ${msg}`,
+    runDispatchSkipped: 'nada disparado (sem correspondências ou sem webhook)',
+    runRedispatch: 'Reenviar ao webhook',
+    runResume: 'Retomar',
+    runFailed: (msg) => `a análise falhou: ${msg}`,
+    matchesTitle: (n) => `Notícias separadas (${n})`,
+    matchP: (p) => `p ${p}`,
+    injectionNote: (n) => `${n} lote(s) sinalizado(s) por injeção de prompt — descartado(s) do disparo`,
+    historyTitle: 'Histórico de runs',
+    historyEmpty: 'nenhuma run ainda',
+    triggerManual: 'manual',
+    triggerCron: 'noturna',
+    triggerTest: 'teste',
+    costLabel: 'custo',
+    modelLabel: 'modelo',
+    nightlyNote: 'Toda a noite (03:00 UTC) o cron re-roda esta análise completa e dispara o array ao webhook.',
+  },
+};
+
+const en = {
+  brand: 'Archive',
+  tagline: 'tech newsletters',
+
+  searchPlaceholder: 'Filter by text…',
+  searchAi: 'Search with AI (semantic)',
+  searchAiShort: 'AI',
+  searchClear: 'clear text',
+  aiNoKeyHint: 'Without a key you can search by text and filters. Add an OpenRouter or DeepSeek key for smart (AI) search.',
+  deepToggle: 'Deep search',
+  deepHint: 'reads the full content of every article in scope (1 call per article)',
+  softHint: 'judges titles and summaries in batches (1 call per ~40 articles)',
+  strictToggle: 'Strict',
+  strictHint: 'Turn on to show only central answers (more precise); off also includes similar results.',
+  specLabel: 'I understood your search as',
+  specHidden: (n) => `+${n} adjacent hidden · turn off “Strict”`,
+  searching: 'searching…',
+  cancel: 'Cancel',
+  aiUnitArticles: 'articles',
+  aiUnitRelevant: 'relevant',
+  aiUnitRelevants: 'relevant',
+  aiEta: (label) => `~${label} left`,
+  aiFailed: (n) => `${n} not analyzed`,
+  aiDeepWarning: 'deep search may take a few minutes',
+  aiResults: (relevant, scanned) => `${relevant} relevant of ${scanned} analyzed`,
+  aiTruncated: (max) => `results limited to the top ${max}`,
+  aiCost: (usd) => `real cost: ${usd}`,
+  aiCostUnknown: 'real cost: —',
+  aiClear: 'Clear search',
+  aiEmptyScope: 'The current scope has no articles — adjust the filters.',
+  aiError: 'The search failed. Check your connection and try again.',
+  aiRetry: 'Try again',
+  aiRelationDirect: 'direct',
+  aiRelationSimilar: 'related',
+  // search resume (localStorage checkpoint): reload / close-and-reopen the tab continues where it left off
+  aiResuming: 'resuming search…',
+  aiPaused: 'Search interrupted — you can resume where it left off.',
+  aiResumeAction: 'Resume',
+  aiResumeDiscard: 'Discard',
+
+  // search history (localStorage; every completed search is saved automatically)
+  historyTitle: 'Search history',
+  historyOpen: 'Search history',
+  historyEmpty: 'No saved searches yet — every AI search shows up here.',
+  historyRecent: 'Recent searches',
+  historyReopen: 'Open the saved result (no cost)',
+  historyRerun: 'Run again',
+  historyDelete: 'Delete',
+  historyClear: 'Clear history',
+  historyClearConfirm: 'Delete all? Click again.',
+  historyFrozen: (when) => `saved on ${when}`,
+  historyMissing: (n) => `${n} item${n === 1 ? '' : 's'} outside the archive`,
+  historyStats: (rel, total) => `${rel}/${total}`,
+
+  confirmTitle: 'Confirm AI search',
+  confirmBody: (count, calls) =>
+    `The scope has ${count} article${count === 1 ? '' : 's'} — that's ~${calls} AI call${calls === 1 ? '' : 's'}.`,
+  confirmGo: 'Run search',
+  confirmCancel: 'Not now',
+
+  keyTitle: 'OpenRouter key',
+  keyBody:
+    'Typed search uses AI and needs YOUR OpenRouter key. It is stored only in this browser (localStorage) and calls go straight to OpenRouter — nothing passes through our server.',
+  keyHint: 'Tip: create a dedicated key with a credit limit at openrouter.ai/keys.',
+  keyPlaceholder: 'sk-or-…',
+  keySave: 'Validate and save',
+  keySaving: 'validating…',
+  keyInvalid: 'Invalid key — OpenRouter rejected it. Check and try again.',
+  keyNetwork: 'Could not validate (network). Try again.',
+  keyForget: 'Forget saved key',
+  keyExpired: 'The saved key was rejected by OpenRouter (expired or revoked?). Paste another.',
+  keyManageTitle: 'OpenRouter key saved',
+  keyManageBody: 'You already have a key saved in this browser — AI search is enabled. Paste another to replace it, or forget the current one.',
+  keyBtnHas: 'OpenRouter key saved — manage',
+  keyBtnMissing: 'Add OpenRouter key (AI search)',
+  keySaved: 'key saved ✓',
+
+  // key provider (BYOK): openrouter (default) | deepseek direct
+  keyProviderLabel: 'Provider',
+  keyProviderOr: 'OpenRouter',
+  keyProviderDeepSeek: 'DeepSeek',
+  keyTitleDs: 'DeepSeek key',
+  keyBodyDs:
+    'Typed search uses AI and needs YOUR DeepSeek key (platform.deepseek.com). It is stored only in this browser (localStorage) and calls go straight to DeepSeek — nothing passes through our server.',
+  keyHintDs: 'Tip: create a dedicated key at platform.deepseek.com (API Keys).',
+  keyPlaceholderDs: 'sk-…',
+  keyInvalidDs: 'Invalid key — DeepSeek rejected it. Check and try again.',
+  keyExpiredDs: 'The saved key was rejected by DeepSeek (expired or revoked?). Paste another.',
+  keyManageTitleDs: 'DeepSeek key saved',
+  keyManageBodyDs: 'You already have a DeepSeek key saved in this browser — AI search is enabled. Paste another to replace it, or forget the current one.',
+  keyBtnHasDs: 'DeepSeek key saved — manage',
+  keyBtnMissingDs: 'Add DeepSeek key (AI search)',
+
+  // key manager (both keys can coexist; the active provider decides the search)
+  keyTitleAll: 'AI search keys (BYOK)',
+  keyBodyAll:
+    'Keep keys for both providers here — OpenRouter and DeepSeek direct. They stay only in this browser (localStorage) and calls go straight to the API, nothing passes through our server. Saving a key activates it; search uses the active key.',
+  keyManageBodyAll:
+    'You already have key(s) saved in this browser. Test each one, paste another to replace it, activate the one you want to use, or forget the ones you no longer use.',
+  keyHintAll: 'Tips: create dedicated keys with a credit limit. Test validates without saving; saving activates the provider.',
+  keyTest: 'Test',
+  keyTesting: 'testing…',
+  keyTestOk: 'valid key ✓',
+  keyActivate: 'Use this key',
+  keyActive: 'active',
+  keyNoKey: 'no key',
+  keyNoKeyDs: 'No DeepSeek key saved — paste one to activate it.',
+
+  filters: 'Filters',
+  filterSource: 'Sources',
+  filterAllSources: 'All sources',
+  filterSourcesHint: 'None checked = all',
+  filterPeriod: 'Period',
+  filterFrom: 'from',
+  filterTo: 'to',
+  last7: '7 days',
+  last30: '30 days',
+  filterFacets: 'Tags',
+  filterVerify: 'Verification',
+  verifyAll: 'All',
+  showJunk: 'Show discarded',
+  showJunkHint: 'Includes items with no article body (stubs, tweets, image pages)',
+  facetTagUnavailable: 'No items with the current filters',
+  clearFilters: 'Clear filters',
+  showMore: (n) => `+${n} more`,
+  showLess: 'show less',
+  activeFilters: 'active filters',
+
+  kindLabel: 'Item type',
+  results: (n) => `${n} article${n === 1 ? '' : 's'}`,
+  articleWord: (n) => (n === 1 ? 'article' : 'articles'),
+  sourceFallback: (id) => `source ${id}`,
+  pillSince: (d) => `since ${d}`,
+  pillUntil: (d) => `until ${d}`,
+  loadMore: 'Load more',
+  emptyBase: 'The archive is empty — run `ncrawl export --format web` to generate the data.',
+  emptyFiltered: 'Nothing here with these filters.',
+  loadError: 'Could not load the archive.',
+  retry: 'Reload',
+  readOriginal: 'Read the original article',
+  openArticle: 'Open article',
+  playAll: 'Play results',
+  stopPlayback: 'Stop audio',
+  playSummary: 'Play summary',
+  close: 'Close',
+  loading: 'loading…',
+  noSummary: 'no Portuguese summary (pending processing)',
+
+  themeToLight: 'Light theme',
+  themeToDark: 'Dark theme',
+  langLabel: 'Language',
+  langSwitchTo: (name) => `Switch to ${name}`,
+  helpTitle: 'How it works',
+  costBadgeTitle: 'Accumulated AI cost of building the archive',
+  updatedAt: (d) => `archive from ${d}`,
+
+  tutorialAria: 'Intro tour of the Archive',
+  tutorialStep: (i, n) => `Step ${i} of ${n}`,
+  tutorialSkip: 'Skip',
+  tutorialBack: 'Back',
+  tutorialNext: 'Continue',
+  tutorialDone: 'Get started',
+  tutorialGoTo: (i) => `Go to step ${i}`,
+  tutorialSteps: [
+    {
+      icon: 'sparkle',
+      title: 'Welcome to the Archive',
+      body: 'A searchable archive of tech newsletters. The best issues, gathered, cleaned and organized — ready to explore.',
+    },
+    {
+      icon: 'search',
+      title: 'Search your way',
+      body: 'Filter by text instantly, or turn on AI (semantic) search to find by idea, not just exact words. AI search uses your own key (OpenRouter or DeepSeek).',
+    },
+    {
+      icon: 'sliders',
+      title: 'Refine with filters',
+      body: 'Combine source, period and tags, and switch between News, Tools and Releases to land on exactly what matters.',
+    },
+    {
+      icon: 'cards',
+      title: 'Read without noise',
+      body: 'Each card carries a Portuguese summary. Open an article to see the cleaned content and the direct link to the original source.',
+    },
+    {
+      icon: 'rocket',
+      title: 'Transparent and in your control',
+      body: 'AI search is BYOK: you see the real cost of every query and nothing passes through our server. Switch theme and language anytime — just get started.',
+    },
+  ],
+
+  // /admin page (Vercel backend: JEV analysis × webhook) — same pt/en parity rule
+  admin: {
+    title: 'Admin',
+    subtitle: 'JEV analysis × webhook',
+    booting: 'loading…',
+    loginTitle: 'Sign in',
+    user: 'User',
+    password: 'Password',
+    loginBtn: 'Sign in',
+    loginError: 'wrong user or password',
+    logout: 'Sign out',
+    notConfiguredTitle: 'Server not configured',
+    notConfiguredBody:
+      'Set ADMIN_USER, ADMIN_PASSWORD and ADMIN_SESSION_SECRET in the project Environment Variables on Vercel and redeploy.',
+    keyMissing: 'The backend is missing OPENROUTER_API_KEY (Vercel Environment Variables).',
+    kvMissing:
+      'No Vercel KV/Upstash attached to the project: configuration and runs will not persist. Create the database in the Vercel dashboard and attach it.',
+    configSourceEnv: 'fixed configuration read from env (no KV)',
+    analysisTitle: 'JEV analysis',
+    inputLabel: 'Input (your interest)',
+    inputHint: 'Describe what matters — JEV decides per news item whether it matches. E.g. “AI agents and MCP”.',
+    inputPlaceholder: 'e.g. AI agents, LLMs and MCP',
+    periodLabel: 'Period (same filter as the site)',
+    fromLabel: 'from',
+    toLabel: 'to',
+    sourcesLabel: 'Sources',
+    sourcesAll: 'all sources',
+    kindLabel: 'Type',
+    kindAll: 'all',
+    kindNews: 'news',
+    kindTool: 'tools',
+    kindRelease: 'releases',
+    thresholdLabel: 'Separation threshold',
+    thresholdHint: 'a news item is separated when the calibrated JEV probability ≥ threshold.',
+    batchLabel: 'Batch size',
+    batchHint: 'articles per JEV request (1–25, default 25). Batches are fired 30 at a time.',
+    save: 'Save',
+    saved: 'saved',
+    saveFailed: 'could not save',
+    estimate: (n, usd) => `${n} articles in scope · estimated cost ≈ ${usd}`,
+    scopeLoading: 'computing scope…',
+    webhookTitle: 'Dispatch webhook',
+    webhookLabel: 'URL',
+    webhookHint: 'separated news are sent as a JSON array (POST) to this URL.',
+    webhookTest: 'Test',
+    webhookTestOk: (status) => `test sent (HTTP ${status})`,
+    webhookTestBad: (msg) => `test failed: ${msg}`,
+    webhookMissing: 'no webhook registered — nothing will be dispatched',
+    runBtn: 'Run analysis',
+    runBusy: 'running…',
+    runProgress: (done, total) => `batch ${done} of ${total}`,
+    runTitle: 'Run',
+    runStatusRunning: 'running',
+    runStatusDone: 'done',
+    runStatusError: 'error',
+    runScanned: (n) => `${n} scanned`,
+    runSeparadas: (n) => `${n} separated news`,
+    runDispatchOk: (n) => `${n} news dispatched to the webhook`,
+    runDispatchFail: (msg) => `dispatch failed: ${msg}`,
+    runDispatchSkipped: 'nothing dispatched (no matches or no webhook)',
+    runRedispatch: 'Resend to webhook',
+    runResume: 'Resume',
+    runFailed: (msg) => `the analysis failed: ${msg}`,
+    matchesTitle: (n) => `Separated news (${n})`,
+    matchP: (p) => `p ${p}`,
+    injectionNote: (n) => `${n} batch(es) flagged for prompt injection — dropped from dispatch`,
+    historyTitle: 'Run history',
+    historyEmpty: 'no runs yet',
+    triggerManual: 'manual',
+    triggerCron: 'nightly',
+    triggerTest: 'test',
+    costLabel: 'cost',
+    modelLabel: 'model',
+    nightlyNote: 'Every night (03:00 UTC) the cron re-runs this full analysis and dispatches the array to the webhook.',
+  },
+};
+
+// Rótulos de vocabulário fixo (kind/verify/faceta), por idioma. Chaves = valores do acervo.
+const LABELS = {
+  pt: {
+    KIND_LABEL: { all: 'Tudo', news: 'Notícias', tool: 'Ferramentas', release: 'Releases' },
+    VERIFY_LABEL: { ok: 'ok', suspect: 'suspeito', junk: 'lixo' },
+    FACET_LABEL: {
+      domain: 'Domínio',
+      'content-type': 'Tipo de conteúdo',
+      'topic-technology': 'Tecnologia / tópico',
+      difficulty: 'Nível',
+      'ecosystem-language': 'Ecossistema / linguagem',
+      'company-vendor-model': 'Empresa / modelo',
+      'framework-library-tool': 'Framework / lib / ferramenta',
+      'concept-theme': 'Conceito / tema',
+      'trending-emerging': 'Tendências',
+    },
+  },
+  en: {
+    KIND_LABEL: { all: 'All', news: 'News', tool: 'Tools', release: 'Releases' },
+    VERIFY_LABEL: { ok: 'ok', suspect: 'suspect', junk: 'junk' },
+    FACET_LABEL: {
+      domain: 'Domain',
+      'content-type': 'Content type',
+      'topic-technology': 'Technology / topic',
+      difficulty: 'Level',
+      'ecosystem-language': 'Ecosystem / language',
+      'company-vendor-model': 'Company / model',
+      'framework-library-tool': 'Framework / lib / tool',
+      'concept-theme': 'Concept / theme',
+      'trending-emerging': 'Trending',
+    },
+  },
+};
+
+/** Dicionário completo por locale: strings + os três mapas de rótulo, tudo num objeto só. */
+export const DICTS = {
+  pt: { ...pt, ...LABELS.pt },
+  en: { ...en, ...LABELS.en },
+};
+
+// Nome de cada idioma no PRÓPRIO idioma (endônimo) — pro toggle e pro aria-label.
+export const LOCALE_NAME = { pt: 'Português', en: 'English' };
+
+// Locale ativo dos formatadores de número (setado pelo LocaleProvider em i18n.jsx). Fica num
+// singleton de módulo porque fmtUsd/fmtEta são chamados como funções puras, fora do React.
+let _fmtLocale = 'pt';
+const BCP47 = { pt: 'pt-BR', en: 'en-US' };
+export function setFmtLocale(l) {
+  _fmtLocale = l === 'en' ? 'en' : 'pt';
+}
+export function getFmtLocale() {
+  return _fmtLocale;
+}
+
+/** Formata US$ com 2–4 casas (custos de IA são fracionários), no locale ativo. */
+export function fmtUsd(v) {
+  const n = Number(v) || 0;
+  const digits = n > 0 && n < 0.01 ? 4 : 2;
+  return `US$ ${n.toLocaleString(BCP47[_fmtLocale], { minimumFractionDigits: 2, maximumFractionDigits: digits })}`;
+}
+
+/** Inteiro com o separador de milhar do locale ativo (2.370 em pt vs 2,370 em en). */
+export function fmtInt(v) {
+  return Math.round(Number(v) || 0).toLocaleString(BCP47[_fmtLocale]);
+}
+
+/** Data+hora curtas de um ISO (createdAt do histórico), no locale ativo; vazio p/ valor inválido. */
+export function fmtDateTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString(BCP47[_fmtLocale], { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+/** ETA legível a partir de segundos: "45s", "2min", "2min 30s" (unidades neutras). */
+export function fmtEta(secs) {
+  const s = Math.max(0, Math.round(Number(secs) || 0));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return r ? `${m}min ${r}s` : `${m}min`;
+}
