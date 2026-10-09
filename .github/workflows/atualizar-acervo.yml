@@ -36,7 +36,7 @@ concurrency:
 jobs:
   coletar:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 300 # teto do job inteiro (o GitHub permite até 360)
     env:
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       BUDGET_USD: "1"                     # teto de gasto com IA por execução (US$)
@@ -71,7 +71,11 @@ jobs:
       - name: Reconstruir o banco a partir do acervo publicado
         run: node src/index.js restore
 
+      # Teto PRÓPRIO da coleta: se passar disso, a coleta é interrompida mas o job
+      # SEGUE — o que já foi salvo no banco é exportado e publicado (nada se perde).
       - name: Coletar newsletters novas
+        timeout-minutes: 200
+        continue-on-error: true
         run: |
           DIAS="${{ github.event.inputs.dias || '3' }}"
           DESDE="$(date -u -d "${DIAS} days ago" +%F)"
