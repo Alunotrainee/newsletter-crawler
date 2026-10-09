@@ -1,0 +1,108 @@
+# =============================================================================
+# atualizar-acervo — coleta diária automática do acervo de newsletters
+#
+# Todo dia (03:00 de Brasília) e sob demanda (botão "Run workflow"):
+#   1. reconstrói o banco SQLite a partir do snapshot commitado (webapp/public/data)
+#   2. roda o crawler só nos últimos dias (--since) — traz apenas o que é novo
+#      (resumo PT-BR, classificação e verificação rodam dentro do crawl)
+#   3. exporta o snapshot do buscador e, se mudou, commita e faz push na main
+#   4. o push dispara o deploy automático da Vercel (projeto com Root Directory = webapp)
+#
+# Segredo necessário (Settings → Secrets and variables → Actions):
+#   OPENROUTER_API_KEY — chave dedicada, de preferência com limite de crédito
+# Teto de gasto por execução: BUDGET_USD (abaixo). Ao atingir, o crawl para e o
+# que já foi coletado é publicado; o resto fica para o dia seguinte.
+# =============================================================================
+
+name: atualizar-acervo
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # 06:00 UTC = 03:00 em Brasília
+  workflow_dispatch:
+    inputs:
+      dias:
+        description: "Coletar newsletters dos últimos N dias"
+        required: false
+        default: "3"
+
+permissions:
+  contents: write # commit + push do snapshot atualizado
+
+concurrency:
+  group: atualizar-acervo
+  cancel-in-progress: false
+
+jobs:
+  coletar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      BUDGET_USD: "1"                     # teto de gasto com IA por execução (US$)
+      NC_HOME: ${{ github.workspace }}/.nc-home
+      CRAWLER_CHROMIUM_ARGS: --no-sandbox,--disable-dev-shm-usage,--disable-gpu
+      NODE_NO_WARNINGS: "1"
+    steps:
+      - name: Checkout (com histórico, para o restore)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Node 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Dependências
+        run: npm ci
+
+      - name: Navegador (Playwright/Chromium)
+        run: npx playwright install --with-deps chromium
+
+      - name: Verificar chave
+        run: |
+          if [ -z "$OPENROUTER_API_KEY" ]; then
+            echo "::error::Segredo OPENROUTER_API_KEY não configurado (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+
+      - name: Reconstruir o banco a partir do acervo publicado
+        run: node src/index.js restore
+
+      - name: Coletar newsletters novas
+        run: |
+          DIAS="${{ github.event.inputs.dias || '3' }}"
+          DESDE="$(date -u -d "${DIAS} days ago" +%F)"
+          echo "Coletando desde ${DESDE} (teto US\$ ${BUDGET_USD})"
+          node src/index.js crawl --since "${DESDE}" --no-restore
+
+      - name: Exportar o snapshot do buscador
+        run: node src/index.js export --format web
+
+      - name: Publicar (commit + push, se houver novidade)
+        run: |
+          git config user.name "${{ github.repository_owner }}"
+          git config user.email "${{ github.repository_owner_id }}+${{ github.repository_owner }}@users.noreply.github.com"
+          git add webapp/public/data webapp/public/api 2>/dev/null || git add webapp/public/data
+          if git diff --cached --quiet; then
+            echo "Nada novo para publicar."
+            exit 0
+          fi
+          # Só o carimbo de data (generatedAt) mudou? Então não há novidade real.
+          REAIS="$(git diff --cached -U0 | grep -E '^[-+]' | grep -vE '^(\+\+\+|---)' | grep -v generatedAt | wc -l)"
+          if [ "$REAIS" = "0" ]; then
+            echo "Só o carimbo de data mudou — nada novo para publicar."
+            exit 0
+          fi
+          git commit -m "chore(acervo): atualização automática $(date -u +%F)"
+          git push --no-verify origin HEAD:main
+
+      - name: Resumo
+        if: always()
+        run: |
+          {
+            echo "### Atualização do acervo"
+            node src/index.js status 2>/dev/null | tail -n 25 || true
+          } >> "$GITHUB_STEP_SUMMARY"
