@@ -760196,5 +760196,39 @@
     "robotics"
    ]
   }
+ },
+ {
+  "id": 19679,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/apple-brings-touch-to-the-mac",
+  "title": "Apple brings touch to the Mac",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, tech enthusiasts. Apple spent years refusing to put touch on the Mac. Now it may sell you one. With touchscreen MacBook Pros reportedly on the way, plus an OLED iPad mini and a Siri-powered home hub expected next week, October’s biggest reveal seems to be Apple changing its mind. Also, Amazon trades Fire for Alexa-powered tablets that finally welcome Google Play, and we unpack wh",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-10-09",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
+ },
+ {
+  "id": 19680,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/microsoft-s-jacob-andreou-on-ai-s-product-gap",
+  "title": "Microsoft's Jacob Andreou on AI's product gap",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, AI enthusiasts. AI is built into almost every app we open, but that doesn't automatically make it useful. Microsoft's answer is to bring it all into one place with Copilot. Built around three new capabilities — Home, Code, and Autopilot — it's being pitched as an “OS for work” where you can chat, build apps, and work alongside agents. In partnership with Microsoft, we sat down wi",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-10-11",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]

@@ -1,22 +1,22 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-10-10T12:01:48.828Z",
+ "generatedAt": "2026-10-11T12:14:25.942Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19212,
+  "articles": 19214,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 700
+   "unknown": 702
   }
  },
  "dates": {
   "min": "2015-01-19",
-  "max": "2026-10-09"
+  "max": "2026-10-11"
  },
  "sources": [
   {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 356
+   "count": 358
   },
   {
    "id": 11,
@@ -764808,6 +764808,40 @@
      "robotics"
     ]
    }
+  },
+  {
+   "id": 19679,
+   "url": "https://www.therundown.ai/articles/apple-brings-touch-to-the-mac",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Apple brings touch to the Mac",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, tech enthusiasts. Apple spent years refusing to put touch on the Mac. Now it may sell you one. With touchscreen MacBook Pros reportedly on the way, plus an OLED iPad mini and a Siri-powered home hub expected next week, October’s biggest reveal seems to be Apple changing its mind. Also, Amazon trades Fire for Alexa-powered tablets that finally welcome Google Play, and we unpack wh",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-10-09",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19680,
+   "url": "https://www.therundown.ai/articles/microsoft-s-jacob-andreou-on-ai-s-product-gap",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Microsoft's Jacob Andreou on AI's product gap",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, AI enthusiasts. AI is built into almost every app we open, but that doesn't automatically make it useful. Microsoft's answer is to bring it all into one place with Copilot. Built around three new capabilities — Home, Code, and Autopilot — it's being pitched as an “OS for work” where you can chat, build apps, and work alongside agents. In partnership with Microsoft, we sat down wi",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-10-11",
+   "verifyStatus": null,
+   "tags": {}
   }
  ]
 }
