@@ -760230,5 +760230,22 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19681,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/this-ai-factory-builds-tiny-machines-from-code",
+  "title": "This AI factory builds tiny machines from code",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, AI enthusiasts, and welcome to our 8,982 new readers. Jeff Holden helped create Amazon Prime and ran Uber’s self-driving program. Now he wants to make building a machine as easy as editing a line of code. His startup, Atomic Machines, just emerged from six years of stealth with $250M and a vision of “universal command of matter” through an AI-guided factory that builds tiny machine",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-10-12",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]
