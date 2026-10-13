@@ -1,22 +1,22 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-10-12T14:37:22.737Z",
+ "generatedAt": "2026-10-13T13:43:00.799Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19215,
+  "articles": 19217,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 703
+   "unknown": 705
   }
  },
  "dates": {
   "min": "2015-01-19",
-  "max": "2026-10-12"
+  "max": "2026-10-13"
  },
  "sources": [
   {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 359
+   "count": 361
   },
   {
    "id": 11,
@@ -764852,6 +764852,40 @@
    "titlePt": null,
    "summaryPt": null,
    "snippet": "Good morning, AI enthusiasts, and welcome to our 8,982 new readers. Jeff Holden helped create Amazon Prime and ran Uber’s self-driving program. Now he wants to make building a machine as easy as editing a line of code. His startup, Atomic Machines, just emerged from six years of stealth with $250M and a vision of “universal command of matter” through an AI-guided factory that builds tiny machine",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-10-12",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19682,
+   "url": "https://www.therundown.ai/articles/meta-watermelon-ripens-into-a-frontier-model",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Meta's Watermelon ripens into a frontier model",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, AI enthusiasts, and welcome to our 4,730 new readers. Meta’s Watermelon has been ripening and hyped for months. It’s finally ready, and just came out bigger than almost anyone expected. The company’s new Muse Wonder family (codenamed Watermelon) is here, with its larger model now trailing only Claude Opus 5.5 in overall rankings — completing a climb to the frontier that looked pret",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-10-13",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19683,
+   "url": "https://www.therundown.ai/articles/ucla-builds-a-humanoid-from-smartphone",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "UCLA builds a humanoid from smartphone",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, robotics enthusiasts. That Android smartphone gathering dust in your junk drawer could have a second life. UCLA researchers built PhoneBot, a 19-inch humanoid with a smartphone for a brain and $400 in extra hardware. It walks, twists its torso, and pushes itself back up after a faceplant. Also: Tesla’s patent application details touch-sensitive robot skin, while EPFL unveils a ro",
    "issueUrl": "https://www.therundown.ai/articles",
    "blurb": null,
    "kind": null,

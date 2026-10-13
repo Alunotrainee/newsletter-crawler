@@ -760247,5 +760247,39 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19682,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/meta-watermelon-ripens-into-a-frontier-model",
+  "title": "Meta's Watermelon ripens into a frontier model",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, AI enthusiasts, and welcome to our 4,730 new readers. Meta’s Watermelon has been ripening and hyped for months. It’s finally ready, and just came out bigger than almost anyone expected. The company’s new Muse Wonder family (codenamed Watermelon) is here, with its larger model now trailing only Claude Opus 5.5 in overall rankings — completing a climb to the frontier that looked pret",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-10-13",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
+ },
+ {
+  "id": 19683,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/ucla-builds-a-humanoid-from-smartphone",
+  "title": "UCLA builds a humanoid from smartphone",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, robotics enthusiasts. That Android smartphone gathering dust in your junk drawer could have a second life. UCLA researchers built PhoneBot, a 19-inch humanoid with a smartphone for a brain and $400 in extra hardware. It walks, twists its torso, and pushes itself back up after a faceplant. Also: Tesla’s patent application details touch-sensitive robot skin, while EPFL unveils a ro",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-10-12",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]
