@@ -1,22 +1,22 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-10-13T13:43:00.799Z",
+ "generatedAt": "2026-10-15T10:59:12.875Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19217,
+  "articles": 19219,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 705
+   "unknown": 707
   }
  },
  "dates": {
   "min": "2015-01-19",
-  "max": "2026-10-13"
+  "max": "2026-10-14"
  },
  "sources": [
   {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 361
+   "count": 363
   },
   {
    "id": 11,
@@ -764891,6 +764891,40 @@
    "kind": null,
    "section": null,
    "date": "2026-10-12",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19684,
+   "url": "https://www.therundown.ai/articles/openai-finds-a-bug-in-its-boardroom",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "OpenAI finds a bug in its boardroom",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, AI enthusiasts, and welcome to our 5,034 new readers. Last month, OpenAI went from hacker to hacked. This month, it used ChatGPT to play the detective. Federal prosecutors now say one of its engineers hid a recorder in the company’s executive meeting room, and OpenAI says its own AI helped crack the case. Washington is treating it as a national security matter, which tells you how",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-10-14",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19685,
+   "url": "https://www.therundown.ai/articles/apple-goes-all-in-on-the-home",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Apple goes all-in on the home",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, tech enthusiasts. At its “Welcome Home” event in NYC, Apple just unveiled a $299 HomeView display, refreshed Apple TV and HomePod hardware, plus cameras, thermostats, and a smart lock. Here’s everything Apple announced — and why Siri could make or break the whole plan. Also: A cyberattack sends French grocery chains into a meltdown, and Google’s new Fitbit Edge has a battery you ca",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-10-13",
    "verifyStatus": null,
    "tags": {}
   }

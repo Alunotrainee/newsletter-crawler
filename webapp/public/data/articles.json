@@ -760281,5 +760281,39 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19684,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/openai-finds-a-bug-in-its-boardroom",
+  "title": "OpenAI finds a bug in its boardroom",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, AI enthusiasts, and welcome to our 5,034 new readers. Last month, OpenAI went from hacker to hacked. This month, it used ChatGPT to play the detective. Federal prosecutors now say one of its engineers hid a recorder in the company’s executive meeting room, and OpenAI says its own AI helped crack the case. Washington is treating it as a national security matter, which tells you how",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-10-14",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
+ },
+ {
+  "id": 19685,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/apple-goes-all-in-on-the-home",
+  "title": "Apple goes all-in on the home",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, tech enthusiasts. At its “Welcome Home” event in NYC, Apple just unveiled a $299 HomeView display, refreshed Apple TV and HomePod hardware, plus cameras, thermostats, and a smart lock. Here’s everything Apple announced — and why Siri could make or break the whole plan. Also: A cyberattack sends French grocery chains into a meltdown, and Google’s new Fitbit Edge has a battery you ca",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-10-13",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]
