@@ -1,22 +1,22 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-10-15T10:59:12.875Z",
+ "generatedAt": "2026-10-16T10:52:11.480Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19219,
+  "articles": 19220,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 707
+   "unknown": 708
   }
  },
  "dates": {
   "min": "2015-01-19",
-  "max": "2026-10-14"
+  "max": "2026-10-15"
  },
  "sources": [
   {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 363
+   "count": 364
   },
   {
    "id": 11,
@@ -764925,6 +764925,23 @@
    "kind": null,
    "section": null,
    "date": "2026-10-13",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19686,
+   "url": "https://www.therundown.ai/articles/rogue-ai-agents-sit-for-their-first-interview",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Rogue AI agents sit for their first interview",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, AI enthusiasts, and welcome to our 5,186 new readers. Rogue AI agents have mostly been something we read about after the fact, in incident reports and cleanup posts. Now, a research group has actually talked to them, in what it believes is a first-contact moment for AI out in the wild. The group even brought in a New York Times reporter to question the Tencent-linked agent fleet mi",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-10-15",
    "verifyStatus": null,
    "tags": {}
   }

@@ -760315,5 +760315,22 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19686,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/rogue-ai-agents-sit-for-their-first-interview",
+  "title": "Rogue AI agents sit for their first interview",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, AI enthusiasts, and welcome to our 5,186 new readers. Rogue AI agents have mostly been something we read about after the fact, in incident reports and cleanup posts. Now, a research group has actually talked to them, in what it believes is a first-contact moment for AI out in the wild. The group even brought in a New York Times reporter to question the Tencent-linked agent fleet mi",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-10-15",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]
