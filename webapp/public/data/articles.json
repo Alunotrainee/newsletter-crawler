@@ -760332,5 +760332,39 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19687,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/softbank-18b-bet-on-robot-guards",
+  "title": "SoftBank’s $18B bet on robot guards",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, robotics enthusiasts. SoftBank wants robots to clock in — and is reportedly in early talks to buy Allied Universal, the biggest U.S. security firm, for up to $18B. Masayoshi Son sees its guard posts as proving grounds for robots that could replace some staff. Allied would hand SoftBank a ready-made customer base, if the bots can earn their keep. In today’s robotics rundown: SoftB",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-10-19",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
+ },
+ {
+  "id": 19688,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/anthropic-designs-a-pay-package-for-the-public",
+  "title": "Anthropic designs a pay package for the public",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, AI enthusiasts, and welcome to our 11,494 new readers who joined yesterday. Frontier labs keep saying that the money AI makes should be shared with the public, but so far that’s mostly lived in research and warnings. Anthropic just put real stock behind it. Its new Public Benefit Fund grows as Anthropic’s value rises, and the company says it could even send money straight to groups",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-10-19",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]
