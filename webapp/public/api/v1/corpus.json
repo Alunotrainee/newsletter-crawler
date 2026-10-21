@@ -1,22 +1,22 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-10-20T11:01:58.517Z",
+ "generatedAt": "2026-10-21T11:19:20.869Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19222,
+  "articles": 19223,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 710
+   "unknown": 711
   }
  },
  "dates": {
   "min": "2015-01-19",
-  "max": "2026-10-19"
+  "max": "2026-10-20"
  },
  "sources": [
   {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 366
+   "count": 367
   },
   {
    "id": 11,
@@ -764976,6 +764976,23 @@
    "kind": null,
    "section": null,
    "date": "2026-10-19",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19689,
+   "url": "https://www.therundown.ai/articles/anthropic-co-founder-says-the-singularity-is-underway",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Anthropic co-founder says the singularity is underway",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, AI enthusiasts, and welcome to our 5,481 new readers. Anthropic has spent 2026 warning that AI is moving faster than anyone is ready for. Now one of its co-founders says the moment has a name. Jack Clark just said that the singularity, when AI-driven progress starts outrunning humanity’s ability to keep up, is officially underway. What comes with it? A possible $44T U.S. economy, s",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-10-20",
    "verifyStatus": null,
    "tags": {}
   }
