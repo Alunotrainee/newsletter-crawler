@@ -760383,5 +760383,39 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19690,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/sam-altman-three-endings-for-the-ai-safety-race",
+  "title": "Sam Altman’s three endings for the AI safety race",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, AI enthusiasts, and welcome to our 4,761 new readers. OpenAI’s current AI safety playbook — shipping models once they pass safety tests and flagging any concerns — is what Sam Altman reportedly calls “pacing 1.0.” The sequel options are a bit more extreme. Altman reportedly gave staff three possible outcomes: a global watchdog, a single super-lab merger, or one lab racing ahead to",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-10-21",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
+ },
+ {
+  "id": 19691,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/what-ai-sees-in-your-selfie",
+  "title": "What AI sees in your selfie",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, tech enthusiasts. How much of your medical future is written on your face? Mass General Brigham researchers trained AI on 40M+ faces to estimate biological age and cancer survival risk from a single selfie. But the next test is whether it actually improves care. Also: Apple tees up its next big reveal, and Japan sets out to bring a piece of a Martian moon back to Earth. In today’",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-10-20",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]

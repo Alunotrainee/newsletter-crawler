@@ -1,22 +1,22 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-10-21T11:19:20.869Z",
+ "generatedAt": "2026-10-22T11:18:00.040Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19223,
+  "articles": 19225,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 711
+   "unknown": 713
   }
  },
  "dates": {
   "min": "2015-01-19",
-  "max": "2026-10-20"
+  "max": "2026-10-21"
  },
  "sources": [
   {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 367
+   "count": 369
   },
   {
    "id": 11,
@@ -764988,6 +764988,40 @@
    "titlePt": null,
    "summaryPt": null,
    "snippet": "Good morning, AI enthusiasts, and welcome to our 5,481 new readers. Anthropic has spent 2026 warning that AI is moving faster than anyone is ready for. Now one of its co-founders says the moment has a name. Jack Clark just said that the singularity, when AI-driven progress starts outrunning humanity’s ability to keep up, is officially underway. What comes with it? A possible $44T U.S. economy, s",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-10-20",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19690,
+   "url": "https://www.therundown.ai/articles/sam-altman-three-endings-for-the-ai-safety-race",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Sam Altman’s three endings for the AI safety race",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, AI enthusiasts, and welcome to our 4,761 new readers. OpenAI’s current AI safety playbook — shipping models once they pass safety tests and flagging any concerns — is what Sam Altman reportedly calls “pacing 1.0.” The sequel options are a bit more extreme. Altman reportedly gave staff three possible outcomes: a global watchdog, a single super-lab merger, or one lab racing ahead to",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-10-21",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19691,
+   "url": "https://www.therundown.ai/articles/what-ai-sees-in-your-selfie",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "What AI sees in your selfie",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, tech enthusiasts. How much of your medical future is written on your face? Mass General Brigham researchers trained AI on 40M+ faces to estimate biological age and cancer survival risk from a single selfie. But the next test is whether it actually improves care. Also: Apple tees up its next big reveal, and Japan sets out to bring a piece of a Martian moon back to Earth. In today’",
    "issueUrl": "https://www.therundown.ai/articles",
    "blurb": null,
    "kind": null,
