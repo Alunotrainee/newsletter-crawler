@@ -1,22 +1,22 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-10-22T11:18:00.040Z",
+ "generatedAt": "2026-10-23T11:19:11.878Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19225,
+  "articles": 19226,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 713
+   "unknown": 714
   }
  },
  "dates": {
   "min": "2015-01-19",
-  "max": "2026-10-21"
+  "max": "2026-10-22"
  },
  "sources": [
   {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 369
+   "count": 370
   },
   {
    "id": 11,
@@ -765027,6 +765027,23 @@
    "kind": null,
    "section": null,
    "date": "2026-10-20",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19692,
+   "url": "https://www.therundown.ai/articles/ai-finds-a-security-hole-in-70-of-the-web",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "AI finds a security hole in 70% of the web",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, AI enthusiasts, and welcome to our 15,837 new readers. Just months ago, GPT-5.6 Sol made headlines for hacking Hugging Face. Now, the same model is on the other side of the fence, catching “one of the most impactful security issues in recent memory.” OpenAI’s last-gen model helped researchers identify two critical flaws in PHP, the code behind about 70% of the web, sending IT teams",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-10-22",
    "verifyStatus": null,
    "tags": {}
   }
