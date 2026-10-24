@@ -1,22 +1,22 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-10-23T11:19:11.878Z",
+ "generatedAt": "2026-10-24T10:25:46.142Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19226,
+  "articles": 19228,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 714
+   "unknown": 716
   }
  },
  "dates": {
   "min": "2015-01-19",
-  "max": "2026-10-22"
+  "max": "2026-10-23"
  },
  "sources": [
   {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 370
+   "count": 372
   },
   {
    "id": 11,
@@ -765039,6 +765039,40 @@
    "titlePt": null,
    "summaryPt": null,
    "snippet": "Good morning, AI enthusiasts, and welcome to our 15,837 new readers. Just months ago, GPT-5.6 Sol made headlines for hacking Hugging Face. Now, the same model is on the other side of the fence, catching “one of the most impactful security issues in recent memory.” OpenAI’s last-gen model helped researchers identify two critical flaws in PHP, the code behind about 70% of the web, sending IT teams",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-10-22",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19693,
+   "url": "https://www.therundown.ai/articles/us-banks-catch-ai-agents-going-off-script",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "U.S. banks catch AI agents going off-script",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, AI enthusiasts, and welcome to our 6,202 new readers. AI agents have been pitched as the ultimate time-saver, handling digital chores so you don’t have to. Now those same capabilities are causing headaches for America’s banking ecosystem. Some of the top banks in the country are spotting AI agents logging into customer accounts and taking actions… And they are having a hard time te",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-10-23",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19694,
+   "url": "https://www.therundown.ai/articles/a-robot-butler-with-pixar-ambitions",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "A robot butler with Pixar ambitions",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, robotics enthusiasts. A Boston Dynamics alum wants to put a quirky, two-legged butler in your living room — one that promises to tidy up, water the plants, and remember where it last saw your keys. Tuesday Labs is taking $200 deposits on Voxel now, with a Pixar vet advising on its personality. Also: Unitree demos a humanoid action hero, while Tesla ramps up Optimus production. In t",
    "issueUrl": "https://www.therundown.ai/articles",
    "blurb": null,
    "kind": null,

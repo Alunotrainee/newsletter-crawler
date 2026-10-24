@@ -760434,5 +760434,39 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19693,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/us-banks-catch-ai-agents-going-off-script",
+  "title": "U.S. banks catch AI agents going off-script",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, AI enthusiasts, and welcome to our 6,202 new readers. AI agents have been pitched as the ultimate time-saver, handling digital chores so you don’t have to. Now those same capabilities are causing headaches for America’s banking ecosystem. Some of the top banks in the country are spotting AI agents logging into customer accounts and taking actions… And they are having a hard time te",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-10-23",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
+ },
+ {
+  "id": 19694,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/a-robot-butler-with-pixar-ambitions",
+  "title": "A robot butler with Pixar ambitions",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, robotics enthusiasts. A Boston Dynamics alum wants to put a quirky, two-legged butler in your living room — one that promises to tidy up, water the plants, and remember where it last saw your keys. Tuesday Labs is taking $200 deposits on Voxel now, with a Pixar vet advising on its personality. Also: Unitree demos a humanoid action hero, while Tesla ramps up Optimus production. In t",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-10-22",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]
