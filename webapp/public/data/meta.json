@@ -1,8 +1,8 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-10-24T10:25:41.565Z",
+ "generatedAt": "2026-10-25T10:53:30.195Z",
  "totals": {
-  "articles": 19228,
+  "articles": 19229,
   "summaries": 18965,
   "classified": 19191
  },
@@ -59,7 +59,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 372
+   "count": 373
   },
   {
    "id": 11,
@@ -4659,7 +4659,7 @@
   {
    "file": "contents.part1.json",
    "from": 9379,
-   "to": 19694
+   "to": 19695
   }
  ]
 }

@@ -760468,5 +760468,22 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19695,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/palmer-luckey-gene-edited-war-dogs",
+  "title": "Palmer Luckey’s gene-edited war dogs",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, tech enthusiasts. Texas-based startup Warhound came out of stealth with a premise that even Michael Bay might find excessive: gene-edited, cloned attack dogs in Anduril body armor. Behind it are Ben Lamm, founder of de-extinction biotech company Colossal Biosciences, and Palmer Luckey, with the first puppies due in early 2027. In today’s tech rundown: Palmer Luckey’s $1.2B war do",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-10-23",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]

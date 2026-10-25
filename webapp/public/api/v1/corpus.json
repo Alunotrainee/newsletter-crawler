@@ -1,17 +1,17 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-10-24T10:25:46.142Z",
+ "generatedAt": "2026-10-25T10:53:34.256Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19228,
+  "articles": 19229,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 716
+   "unknown": 717
   }
  },
  "dates": {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 372
+   "count": 373
   },
   {
    "id": 11,
@@ -765078,6 +765078,23 @@
    "kind": null,
    "section": null,
    "date": "2026-10-22",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19695,
+   "url": "https://www.therundown.ai/articles/palmer-luckey-gene-edited-war-dogs",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Palmer Luckey’s gene-edited war dogs",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, tech enthusiasts. Texas-based startup Warhound came out of stealth with a premise that even Michael Bay might find excessive: gene-edited, cloned attack dogs in Anduril body armor. Behind it are Ben Lamm, founder of de-extinction biotech company Colossal Biosciences, and Palmer Luckey, with the first puppies due in early 2027. In today’s tech rundown: Palmer Luckey’s $1.2B war do",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-10-23",
    "verifyStatus": null,
    "tags": {}
   }
