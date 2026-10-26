@@ -1,22 +1,22 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-10-25T10:53:34.256Z",
+ "generatedAt": "2026-10-26T12:36:28.944Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19229,
+  "articles": 19231,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 717
+   "unknown": 719
   }
  },
  "dates": {
   "min": "2015-01-19",
-  "max": "2026-10-23"
+  "max": "2026-10-26"
  },
  "sources": [
   {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 373
+   "count": 375
   },
   {
    "id": 11,
@@ -765095,6 +765095,40 @@
    "kind": null,
    "section": null,
    "date": "2026-10-23",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19696,
+   "url": "https://www.therundown.ai/articles/kimi-continues-to-challenge-the-frontier-with-k3-1-pro",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Kimi continues to challenge the frontier with K3.1 Pro",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, AI enthusiasts, and welcome to our 10,866 new readers. The frontier leaders keep warning that China’s open models are closing in. For the past year, Moonshot’s Kimi has been the fastest one on the frontier’s tail. The company’s new K3.1 Pro now trails only Anthropic’s and Meta’s top models in independent rankings, and the free weights coming soon would make it the strongest open mo",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-10-26",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19697,
+   "url": "https://www.therundown.ai/articles/sap-s-philipp-herzig-on-ai-built-for-business-data",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "SAP's Philipp Herzig on AI built for business data",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, AI enthusiasts. AI coding tools can spin up an app in minutes, and plenty of people have taken that as a sign traditional software is finished. SAP’s CTO thinks they’re missing the harder part: running a business on that app. In partnership with SAP, we sat down with CTO Philipp Herzig to talk about the “SaaS is dead” debate, how AI is changing the way people use work software, wha",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-10-25",
    "verifyStatus": null,
    "tags": {}
   }
