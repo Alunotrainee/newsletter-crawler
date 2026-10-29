@@ -760587,5 +760587,22 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19702,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/google-gemini-4-carbon-tops-the-charts-for-now",
+  "title": "Google’s Gemini 4 Carbon tops the charts (for now)",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, AI enthusiasts, and welcome to our 4,742 new readers. Google spent much of 2026 playing catch-up in the AI race. A month and two frontier models later, it’s sitting at the top of the charts again, sort of. Gemini 4 Carbon has the numbers to back up all the comeback talk, but like Argon at launch, the public can’t use it yet — and with OpenAI and Anthropic shipping at a similar pace",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-10-29",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]
