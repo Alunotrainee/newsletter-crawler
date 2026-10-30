@@ -760604,5 +760604,39 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19703,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/inside-the-spy-plot-around-nvidia-ceo",
+  "title": "Inside the spy plot around Nvidia’s CEO",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, AI enthusiasts, and welcome to our 4,617 new readers. Nvidia’s chips are at the center of the U.S.-China AI race, and Washington has spent years trying to keep the best ones out of Beijing’s hands. Now, a New York Times report says U.S. intelligence found that an alleged Chinese asset had built close ties to Nvidia CEO Jensen Huang… and the White House chose not to act. In today’s",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-10-30",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
+ },
+ {
+  "id": 19704,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/the-self-driving-future-grabs-a-giant-shovel",
+  "title": "The self-driving future grabs a giant shovel",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, robotics enthusiasts. Construction’s newest hot asset is a dirt-moving machine with nobody at the controls. Three autonomous-excavator startups have raised $950M in 10 weeks — and Bedrock Robotics just took the biggest scoop. Also: MIT’s new snake-like robot goes spelunking in your gut, while Boston Dynamics workers push back against an ICE deal. In today’s robotics rundown: Bedro",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-10-29",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]

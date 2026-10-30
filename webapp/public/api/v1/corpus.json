@@ -1,22 +1,22 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-10-29T12:26:19.092Z",
+ "generatedAt": "2026-10-30T12:17:08.850Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19236,
+  "articles": 19238,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 724
+   "unknown": 726
   }
  },
  "dates": {
   "min": "2015-01-19",
-  "max": "2026-10-29"
+  "max": "2026-10-30"
  },
  "sources": [
   {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 380
+   "count": 382
   },
   {
    "id": 11,
@@ -765209,6 +765209,40 @@
    "titlePt": null,
    "summaryPt": null,
    "snippet": "Good morning, AI enthusiasts, and welcome to our 4,742 new readers. Google spent much of 2026 playing catch-up in the AI race. A month and two frontier models later, it’s sitting at the top of the charts again, sort of. Gemini 4 Carbon has the numbers to back up all the comeback talk, but like Argon at launch, the public can’t use it yet — and with OpenAI and Anthropic shipping at a similar pace",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-10-29",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19703,
+   "url": "https://www.therundown.ai/articles/inside-the-spy-plot-around-nvidia-ceo",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Inside the spy plot around Nvidia’s CEO",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, AI enthusiasts, and welcome to our 4,617 new readers. Nvidia’s chips are at the center of the U.S.-China AI race, and Washington has spent years trying to keep the best ones out of Beijing’s hands. Now, a New York Times report says U.S. intelligence found that an alleged Chinese asset had built close ties to Nvidia CEO Jensen Huang… and the White House chose not to act. In today’s",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-10-30",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19704,
+   "url": "https://www.therundown.ai/articles/the-self-driving-future-grabs-a-giant-shovel",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "The self-driving future grabs a giant shovel",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, robotics enthusiasts. Construction’s newest hot asset is a dirt-moving machine with nobody at the controls. Three autonomous-excavator startups have raised $950M in 10 weeks — and Bedrock Robotics just took the biggest scoop. Also: MIT’s new snake-like robot goes spelunking in your gut, while Boston Dynamics workers push back against an ICE deal. In today’s robotics rundown: Bedro",
    "issueUrl": "https://www.therundown.ai/articles",
    "blurb": null,
    "kind": null,
