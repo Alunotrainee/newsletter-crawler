@@ -760638,5 +760638,22 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19705,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/binance-hit-by-crypto-biggest-heist-ever",
+  "title": "Binance hit by crypto’s biggest heist ever",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, tech enthusiasts. The biggest crypto heist in history just hit the biggest crypto exchange on Earth. On Thursday, hackers drained $6.3B from Binance in minutes, and blockchain trackers say the trail leads to Pyongyang — raising the prospect that one of crypto’s most spectacular robberies could end up financing a nuclear-armed state. In today’s tech rundown: Binance loses $6.3B in",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-10-30",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]

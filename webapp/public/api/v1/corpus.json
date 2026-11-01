@@ -1,17 +1,17 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-10-30T12:17:08.850Z",
+ "generatedAt": "2026-11-01T12:48:37.567Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19238,
+  "articles": 19239,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 726
+   "unknown": 727
   }
  },
  "dates": {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 382
+   "count": 383
   },
   {
    "id": 11,
@@ -765248,6 +765248,23 @@
    "kind": null,
    "section": null,
    "date": "2026-10-29",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19705,
+   "url": "https://www.therundown.ai/articles/binance-hit-by-crypto-biggest-heist-ever",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Binance hit by crypto’s biggest heist ever",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, tech enthusiasts. The biggest crypto heist in history just hit the biggest crypto exchange on Earth. On Thursday, hackers drained $6.3B from Binance in minutes, and blockchain trackers say the trail leads to Pyongyang — raising the prospect that one of crypto’s most spectacular robberies could end up financing a nuclear-armed state. In today’s tech rundown: Binance loses $6.3B in",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-10-30",
    "verifyStatus": null,
    "tags": {}
   }
