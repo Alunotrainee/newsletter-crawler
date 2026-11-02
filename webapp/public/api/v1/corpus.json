@@ -1,22 +1,22 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-11-01T12:48:37.567Z",
+ "generatedAt": "2026-11-02T14:57:03.111Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19239,
+  "articles": 19240,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 727
+   "unknown": 728
   }
  },
  "dates": {
   "min": "2015-01-19",
-  "max": "2026-10-30"
+  "max": "2026-11-02"
  },
  "sources": [
   {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 383
+   "count": 384
   },
   {
    "id": 11,
@@ -765265,6 +765265,23 @@
    "kind": null,
    "section": null,
    "date": "2026-10-30",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19706,
+   "url": "https://www.therundown.ai/articles/ai-backlash-heads-to-the-polls",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "AI backlash heads to the polls",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, AI enthusiasts, and welcome to our 8,118 new readers. AI spent the last two years winning over Washington. This week, it faces a tougher crowd: voters ready to hit the polls and evict the buildout from their own backyards. With data centers now a defining midterm issue, OpenAI already floating a new name for them, and control of the House up for grabs, AI’s next wave of constructio",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-11-02",
    "verifyStatus": null,
    "tags": {}
   }
