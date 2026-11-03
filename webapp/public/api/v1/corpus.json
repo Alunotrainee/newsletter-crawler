@@ -1,22 +1,22 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-11-02T14:57:03.111Z",
+ "generatedAt": "2026-11-03T13:45:43.188Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19240,
+  "articles": 19242,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 728
+   "unknown": 730
   }
  },
  "dates": {
   "min": "2015-01-19",
-  "max": "2026-11-02"
+  "max": "2026-11-03"
  },
  "sources": [
   {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 384
+   "count": 386
   },
   {
    "id": 11,
@@ -765277,6 +765277,40 @@
    "titlePt": null,
    "summaryPt": null,
    "snippet": "Good morning, AI enthusiasts, and welcome to our 8,118 new readers. AI spent the last two years winning over Washington. This week, it faces a tougher crowd: voters ready to hit the polls and evict the buildout from their own backyards. With data centers now a defining midterm issue, OpenAI already floating a new name for them, and control of the House up for grabs, AI’s next wave of constructio",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-11-02",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19707,
+   "url": "https://www.therundown.ai/articles/mit-shows-ai-improving-ai-no-training-required",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "MIT shows AI improving AI, no training required",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, AI enthusiasts, and welcome to our 4,563 new readers. Every few weeks, it seems another leading AI lab says that an autonomous AI researcher is closer to reality. New MIT research just gave a peek at how much of that capability may be sitting inside models already available to the public. GPT-6 Astra went inside a smaller AI with poor math scores and improved it directly, skipping",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-11-03",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19708,
+   "url": "https://www.therundown.ai/articles/meta-builds-its-first-humanoid-robot",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Meta builds its first humanoid robot",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, robotics enthusiasts. Meta has reportedly built a humanoid of its own. Max stands five feet tall, weighs about 100 pounds, and is designed to help with chores. Meta built it in three months with Chinese robotics firm Fourier, and a second version that can climb stairs is already in development. In today’s robotics rundown: Meta built a humanoid to do your chores Walmart commit",
    "issueUrl": "https://www.therundown.ai/articles",
    "blurb": null,
    "kind": null,

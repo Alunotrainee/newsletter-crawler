@@ -760672,5 +760672,39 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19707,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/mit-shows-ai-improving-ai-no-training-required",
+  "title": "MIT shows AI improving AI, no training required",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, AI enthusiasts, and welcome to our 4,563 new readers. Every few weeks, it seems another leading AI lab says that an autonomous AI researcher is closer to reality. New MIT research just gave a peek at how much of that capability may be sitting inside models already available to the public. GPT-6 Astra went inside a smaller AI with poor math scores and improved it directly, skipping",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-03",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
+ },
+ {
+  "id": 19708,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/meta-builds-its-first-humanoid-robot",
+  "title": "Meta builds its first humanoid robot",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, robotics enthusiasts. Meta has reportedly built a humanoid of its own. Max stands five feet tall, weighs about 100 pounds, and is designed to help with chores. Meta built it in three months with Chinese robotics firm Fourier, and a second version that can climb stairs is already in development. In today’s robotics rundown: Meta built a humanoid to do your chores Walmart commit",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-02",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]

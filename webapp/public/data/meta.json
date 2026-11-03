@@ -1,8 +1,8 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-11-02T14:56:58.534Z",
+ "generatedAt": "2026-11-03T13:45:37.592Z",
  "totals": {
-  "articles": 19240,
+  "articles": 19242,
   "summaries": 18965,
   "classified": 19191
  },
@@ -59,7 +59,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 384
+   "count": 386
   },
   {
    "id": 11,
@@ -4604,7 +4604,7 @@
  ],
  "dates": {
   "min": "2015-01-19",
-  "max": "2026-11-02"
+  "max": "2026-11-03"
  },
  "toolContentTypes": [
   "tool-release",
@@ -4659,7 +4659,7 @@
   {
    "file": "contents.part1.json",
    "from": 9379,
-   "to": 19706
+   "to": 19708
   }
  ]
 }
