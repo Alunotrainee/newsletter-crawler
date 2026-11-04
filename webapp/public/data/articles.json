@@ -760706,5 +760706,39 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19709,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/apple-cracks-the-door-open-to-siri-ai",
+  "title": "Apple cracks the door open to Siri AI",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, AI enthusiasts, and welcome to our 4,926 new readers. Years of Apple Intelligence and one full Siri rebuild later, the iPhone still doesn’t feel any more like a device built for the AI era. Could letting other apps in finally change that? Apple just opened up building on its Siri AI to all developers, something the notoriously closed-off ecosystem rarely allows. But none of it reac",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-04",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
+ },
+ {
+  "id": 19710,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/apple-cant-build-enough-iphone-duos",
+  "title": "Apple can't build enough iPhone Duos",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, tech enthusiasts. Apple finally made a foldable, and now it can’t make enough of them. The $1,999 iPhone Duo sold out within hours of launch, and Apple won’t say when supply will catch up. Some orders are already slipping into Jan. 2027. Also: TikTok keeps building out its everything app, and BrainCo wants a wearable to do Ozempic’s job. In today’s tech rundown: Apple says it c",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-03",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]
