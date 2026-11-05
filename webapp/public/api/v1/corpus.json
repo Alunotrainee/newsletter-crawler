@@ -1,22 +1,22 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-11-04T13:54:52.338Z",
+ "generatedAt": "2026-11-05T14:08:53.752Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19244,
+  "articles": 19245,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 732
+   "unknown": 733
   }
  },
  "dates": {
   "min": "2015-01-19",
-  "max": "2026-11-04"
+  "max": "2026-11-05"
  },
  "sources": [
   {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 388
+   "count": 389
   },
   {
    "id": 11,
@@ -765350,6 +765350,23 @@
    "kind": null,
    "section": null,
    "date": "2026-11-03",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19711,
+   "url": "https://www.therundown.ai/articles/ai-agents-can-now-make-your-phone-calls",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "AI agents can now make your phone calls",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, AI enthusiasts, and welcome to our 4,718 new readers. Got a phone call you’ve been putting off? Your AI agent might be ready to handle it for you, from the long hold times to the awkward small talk with whoever picks up. SpaceXSI’s Grok Bot just got the ability to hop on the phone for its paid users, and with rival agents moving in the same direction, sitting on hold (for humans) m",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-11-05",
    "verifyStatus": null,
    "tags": {}
   }
