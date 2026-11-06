@@ -1,22 +1,22 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-11-05T14:08:53.752Z",
+ "generatedAt": "2026-11-06T13:59:40.875Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19245,
+  "articles": 19247,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 733
+   "unknown": 735
   }
  },
  "dates": {
   "min": "2015-01-19",
-  "max": "2026-11-05"
+  "max": "2026-11-06"
  },
  "sources": [
   {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 389
+   "count": 391
   },
   {
    "id": 11,
@@ -765367,6 +765367,40 @@
    "kind": null,
    "section": null,
    "date": "2026-11-05",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19712,
+   "url": "https://www.therundown.ai/articles/agility-2-5b-humanoid-hits-nasdaq",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Agility’s $2.5B humanoid hits Nasdaq",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, robotics enthusiasts. Oregon startup Agility Robotics, maker of the tote-hauling humanoid Digit, lists on Nasdaq today at $2.5B. That’s around 1,400x its 2025 revenue, and more than half of those sales came from five robots sold to one investor. Can Digit earn enough on the warehouse floor to justify that price? In today’s robotics rundown: Agility takes Digit to Wall Street A",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-11-05",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19713,
+   "url": "https://www.therundown.ai/articles/an-inside-look-at-anthropic-s-ai-speedup",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "An inside look at Anthropic’s AI speedup",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, AI enthusiasts, and welcome to our 4,687 new readers. Anthropic has made “pacing the frontier” part of its pitch, holding back on what it hands the public. Inside the lab, the pace appears to be a different story. After 11 weeks inside the lab’s data, METR estimates Anthropic’s progress has roughly doubled, with its own AI driving most of the jump and no clear bottlenecks to slow i",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-11-06",
    "verifyStatus": null,
    "tags": {}
   }

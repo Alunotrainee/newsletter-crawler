@@ -760757,5 +760757,39 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19712,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/agility-2-5b-humanoid-hits-nasdaq",
+  "title": "Agility’s $2.5B humanoid hits Nasdaq",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, robotics enthusiasts. Oregon startup Agility Robotics, maker of the tote-hauling humanoid Digit, lists on Nasdaq today at $2.5B. That’s around 1,400x its 2025 revenue, and more than half of those sales came from five robots sold to one investor. Can Digit earn enough on the warehouse floor to justify that price? In today’s robotics rundown: Agility takes Digit to Wall Street A",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-05",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
+ },
+ {
+  "id": 19713,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/an-inside-look-at-anthropic-s-ai-speedup",
+  "title": "An inside look at Anthropic’s AI speedup",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, AI enthusiasts, and welcome to our 4,687 new readers. Anthropic has made “pacing the frontier” part of its pitch, holding back on what it hands the public. Inside the lab, the pace appears to be a different story. After 11 weeks inside the lab’s data, METR estimates Anthropic’s progress has roughly doubled, with its own AI driving most of the jump and no clear bottlenecks to slow i",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-06",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]
