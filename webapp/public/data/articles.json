@@ -760791,5 +760791,22 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19714,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/big-tech-sues-to-save-the-feed",
+  "title": "Big Tech sues to save the feed",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, tech enthusiasts. Meta, Google, and TikTok have found a rare point of agreement: California shouldn’t get to mess with the machinery that keeps young users scrolling. All three sued this week to kill AB 1709, which strips autoplay and personalized recommendations for users under 16. Now they’re making it a First Amendment fight, arguing the state can’t dictate how platforms curate",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-06",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]

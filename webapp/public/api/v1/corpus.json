@@ -1,17 +1,17 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-11-06T13:59:40.875Z",
+ "generatedAt": "2026-11-08T12:53:58.066Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19247,
+  "articles": 19248,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 735
+   "unknown": 736
   }
  },
  "dates": {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 391
+   "count": 392
   },
   {
    "id": 11,
@@ -765396,6 +765396,23 @@
    "titlePt": null,
    "summaryPt": null,
    "snippet": "Good morning, AI enthusiasts, and welcome to our 4,687 new readers. Anthropic has made “pacing the frontier” part of its pitch, holding back on what it hands the public. Inside the lab, the pace appears to be a different story. After 11 weeks inside the lab’s data, METR estimates Anthropic’s progress has roughly doubled, with its own AI driving most of the jump and no clear bottlenecks to slow i",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-11-06",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19714,
+   "url": "https://www.therundown.ai/articles/big-tech-sues-to-save-the-feed",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Big Tech sues to save the feed",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, tech enthusiasts. Meta, Google, and TikTok have found a rare point of agreement: California shouldn’t get to mess with the machinery that keeps young users scrolling. All three sued this week to kill AB 1709, which strips autoplay and personalized recommendations for users under 16. Now they’re making it a First Amendment fight, arguing the state can’t dictate how platforms curate",
    "issueUrl": "https://www.therundown.ai/articles",
    "blurb": null,
    "kind": null,
