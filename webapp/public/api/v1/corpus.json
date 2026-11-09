@@ -1,22 +1,22 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-11-08T12:53:58.066Z",
+ "generatedAt": "2026-11-09T15:26:19.170Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19248,
+  "articles": 19249,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 736
+   "unknown": 737
   }
  },
  "dates": {
   "min": "2015-01-19",
-  "max": "2026-11-06"
+  "max": "2026-11-09"
  },
  "sources": [
   {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 392
+   "count": 393
   },
   {
    "id": 11,
@@ -765418,6 +765418,23 @@
    "kind": null,
    "section": null,
    "date": "2026-11-06",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19715,
+   "url": "https://www.therundown.ai/articles/jensen-huang-admits-affair-amid-spy-claims",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Jensen Huang admits affair amid spy claims",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, AI enthusiasts, and welcome to our 9,830 new readers. A week ago, Nvidia was brushing off a report about an alleged spy plot involving its CEO as routine customer meetings. Now, Jensen Huang is publicly apologizing, and his own board is investigating. Few founders are as inseparable from what they built as Huang, and no company touches the entire global AI industry like Nvidia. So",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-11-09",
    "verifyStatus": null,
    "tags": {}
   }
