@@ -1,22 +1,22 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-11-09T15:26:19.170Z",
+ "generatedAt": "2026-11-10T14:30:14.228Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19249,
+  "articles": 19251,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 737
+   "unknown": 739
   }
  },
  "dates": {
   "min": "2015-01-19",
-  "max": "2026-11-09"
+  "max": "2026-11-10"
  },
  "sources": [
   {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 393
+   "count": 395
   },
   {
    "id": 11,
@@ -765430,6 +765430,40 @@
    "titlePt": null,
    "summaryPt": null,
    "snippet": "Good morning, AI enthusiasts, and welcome to our 9,830 new readers. A week ago, Nvidia was brushing off a report about an alleged spy plot involving its CEO as routine customer meetings. Now, Jensen Huang is publicly apologizing, and his own board is investigating. Few founders are as inseparable from what they built as Huang, and no company touches the entire global AI industry like Nvidia. So",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-11-09",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19716,
+   "url": "https://www.therundown.ai/articles/anthropic-says-pacing-not-pausing-with-fable-5-2",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Anthropic says ‘pacing, not pausing’ with Fable 5.2",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, AI enthusiasts, and welcome to our 5,334 new readers. Anthropic spent the fall telling the AI industry to pace itself. The company’s first look at what that means just arrived, and the result still sits comfortably at the top of the leaderboards. Fable 5.2 is cheaper, faster, and strong enough to bump Google’s Gemini 4 Carbon before the public even got to try it. If this is Anthrop",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-11-10",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19717,
+   "url": "https://www.therundown.ai/articles/amazon-builds-its-home-robot-team",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Amazon builds its home robot team",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, robotics enthusiasts. Amazon’s $1,450 Astro rolled into 2021 on wheels, never got past invite-only, and ended up in just a few thousand homes. So the company bought a 3.5-ft. humanoid that walks, dances, and holds a conversation, and built a new robotics group around it. Can it crack the home bot market this time? In today’s robotics rundown: Amazon takes another shot at the home",
    "issueUrl": "https://www.therundown.ai/articles",
    "blurb": null,
    "kind": null,

@@ -760825,5 +760825,39 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19716,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/anthropic-says-pacing-not-pausing-with-fable-5-2",
+  "title": "Anthropic says ‘pacing, not pausing’ with Fable 5.2",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, AI enthusiasts, and welcome to our 5,334 new readers. Anthropic spent the fall telling the AI industry to pace itself. The company’s first look at what that means just arrived, and the result still sits comfortably at the top of the leaderboards. Fable 5.2 is cheaper, faster, and strong enough to bump Google’s Gemini 4 Carbon before the public even got to try it. If this is Anthrop",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-10",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
+ },
+ {
+  "id": 19717,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/amazon-builds-its-home-robot-team",
+  "title": "Amazon builds its home robot team",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, robotics enthusiasts. Amazon’s $1,450 Astro rolled into 2021 on wheels, never got past invite-only, and ended up in just a few thousand homes. So the company bought a 3.5-ft. humanoid that walks, dances, and holds a conversation, and built a new robotics group around it. Can it crack the home bot market this time? In today’s robotics rundown: Amazon takes another shot at the home",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-09",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]
