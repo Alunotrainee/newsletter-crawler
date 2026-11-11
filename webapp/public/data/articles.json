@@ -760859,5 +760859,39 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19718,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/huang-s-bad-week-just-got-a-lot-worse",
+  "title": "Huang's bad week just got a lot worse",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, tech enthusiasts. Jensen Huang’s extramarital affair is turning into what the WSJ calls a “national-security nightmare.” His years-long relationship with Alice Huang, a suspected spy, has now reportedly been tied to billions in Nvidia chip sales to China. That’s on top of an FBI probe, a shareholder lawsuit, and a $190B drop in Nvidia’s market value — and it’s only Tuesday. In tod",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-10",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
+ },
+ {
+  "id": 19719,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/openai-invites-brands-to-set-up-shop-in-chatgpt",
+  "title": "OpenAI invites brands to set up shop in ChatGPT",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, AI enthusiasts, and welcome to our 5,653 new readers. Google conditioned companies to obsess over their search listings for decades. That same scramble has been playing out on AI platforms, and OpenAI just gave brands an official way in. Its new ‘Businesses’ beta gives brands a verified profile, a view of their mentions, and a personalized AI agent for direct buyer questions, openi",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-11",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]
