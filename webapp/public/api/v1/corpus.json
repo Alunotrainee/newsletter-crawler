@@ -1,22 +1,22 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-11-11T13:42:25.564Z",
+ "generatedAt": "2026-11-12T14:46:47.402Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19253,
+  "articles": 19254,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 741
+   "unknown": 742
   }
  },
  "dates": {
   "min": "2015-01-19",
-  "max": "2026-11-11"
+  "max": "2026-11-12"
  },
  "sources": [
   {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 397
+   "count": 398
   },
   {
    "id": 11,
@@ -765503,6 +765503,23 @@
    "kind": null,
    "section": null,
    "date": "2026-11-11",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19720,
+   "url": "https://www.therundown.ai/articles/ai-s-biggest-ceo-may-be-on-his-way-out",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "AI’s biggest CEO may be on his way out",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, AI enthusiasts, and welcome to our 5,952 new readers. Jensen Huang has been Nvidia’s center of gravity since 1993, long enough to turn it into the engine of the entire AI boom. That run may suddenly be down to its final days. A new report says directors are preparing to push the co-founder out as CEO, hours after a second affair surfaced, this one with an executive who reports to h",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-11-12",
    "verifyStatus": null,
    "tags": {}
   }
