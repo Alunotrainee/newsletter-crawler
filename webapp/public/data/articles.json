@@ -760910,5 +760910,39 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19721,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/nvidia-enters-life-without-jensen-huang",
+  "title": "Nvidia enters life without Jensen Huang",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, AI enthusiasts, and welcome to our 4,207 new readers. Two weeks ago, a NYT report tied Nvidia’s CEO to an alleged Chinese intelligence asset. Now, the man who turned a Denny’s-booth startup into the engine of the AI boom is out the door. Jensen Huang has resigned after a 33-year run at Nvidia, leaving the world’s most important AI infrastructure company without its founder, and wit",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-13",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
+ },
+ {
+  "id": 19722,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/amazon-turns-ring-cameras-into-robots",
+  "title": "Amazon turns Ring cameras into robots",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, robotics enthusiasts. Amazon’s Ring spent a decade putting cameras on front doors. Now its newest cameras can move: one flies, one rolls. The new Ring Robotics line sends a $250 indoor drone or a $1K business rover to check what tripped the alarm or make scheduled rounds. Also: A German humanoid eyes $8.5B, feds question Waymo’s school-bus fix, and a robot takes “some assembly re",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-12",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]
