@@ -1,17 +1,17 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-11-13T14:04:30.473Z",
+ "generatedAt": "2026-11-14T13:05:38.534Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19256,
+  "articles": 19257,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 744
+   "unknown": 745
   }
  },
  "dates": {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 400
+   "count": 401
   },
   {
    "id": 11,
@@ -765554,6 +765554,23 @@
    "kind": null,
    "section": null,
    "date": "2026-11-12",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19723,
+   "url": "https://www.therundown.ai/articles/microsoft-s-outlook-outage-hits-day-two",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Microsoft’s Outlook outage hits day two",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, tech enthusiasts. Microsoft’s email outage is in its second day, and the tools office workers depend on (Outlook, SharePoint, Copilot) are still glitching for businesses, governments, airlines, and banks around the world. The company reports “encouraging recovery progress” but still can’t say what broke. One Taiwanese financial firm has gone back to confirming trades by fax. In to",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-11-13",
    "verifyStatus": null,
    "tags": {}
   }

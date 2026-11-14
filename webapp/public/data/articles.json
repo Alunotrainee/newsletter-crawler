@@ -760944,5 +760944,22 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19723,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/microsoft-s-outlook-outage-hits-day-two",
+  "title": "Microsoft’s Outlook outage hits day two",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, tech enthusiasts. Microsoft’s email outage is in its second day, and the tools office workers depend on (Outlook, SharePoint, Copilot) are still glitching for businesses, governments, airlines, and banks around the world. The company reports “encouraging recovery progress” but still can’t say what broke. One Taiwanese financial firm has gone back to confirming trades by fax. In to",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-13",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]
