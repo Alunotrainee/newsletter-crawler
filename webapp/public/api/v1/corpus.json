@@ -1,22 +1,22 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-11-14T13:05:38.534Z",
+ "generatedAt": "2026-11-16T15:01:34.855Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19257,
+  "articles": 19258,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 745
+   "unknown": 746
   }
  },
  "dates": {
   "min": "2015-01-19",
-  "max": "2026-11-13"
+  "max": "2026-11-16"
  },
  "sources": [
   {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 401
+   "count": 402
   },
   {
    "id": 11,
@@ -765571,6 +765571,23 @@
    "kind": null,
    "section": null,
    "date": "2026-11-13",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19724,
+   "url": "https://www.therundown.ai/articles/jensen-huang-weighs-a-comeback-at-nvidia",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Jensen Huang weighs a comeback at Nvidia",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, AI enthusiasts, and welcome to our 9,924 new readers. The last time a board’s call sparked this kind of backlash? OpenAI’s firing of Sam Altman in 2023. Three years later, a swell of Nvidia employees and tech titans is hoping for a similar outcome for Jensen Huang. A petition demanding his return just topped 140K signatures in a matter of days, Elon Musk’s among them, and big inves",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-11-16",
    "verifyStatus": null,
    "tags": {}
   }

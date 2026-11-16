@@ -760961,5 +760961,22 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19724,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/jensen-huang-weighs-a-comeback-at-nvidia",
+  "title": "Jensen Huang weighs a comeback at Nvidia",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, AI enthusiasts, and welcome to our 9,924 new readers. The last time a board’s call sparked this kind of backlash? OpenAI’s firing of Sam Altman in 2023. Three years later, a swell of Nvidia employees and tech titans is hoping for a similar outcome for Jensen Huang. A petition demanding his return just topped 140K signatures in a matter of days, Elon Musk’s among them, and big inves",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-16",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]
