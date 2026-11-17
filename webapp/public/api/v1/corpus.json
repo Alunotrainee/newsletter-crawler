@@ -1,22 +1,22 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-11-16T15:01:34.855Z",
+ "generatedAt": "2026-11-17T15:38:22.826Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19258,
+  "articles": 19260,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 746
+   "unknown": 748
   }
  },
  "dates": {
   "min": "2015-01-19",
-  "max": "2026-11-16"
+  "max": "2026-11-17"
  },
  "sources": [
   {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 402
+   "count": 404
   },
   {
    "id": 11,
@@ -765583,6 +765583,40 @@
    "titlePt": null,
    "summaryPt": null,
    "snippet": "Good morning, AI enthusiasts, and welcome to our 9,924 new readers. The last time a board’s call sparked this kind of backlash? OpenAI’s firing of Sam Altman in 2023. Three years later, a swell of Nvidia employees and tech titans is hoping for a similar outcome for Jensen Huang. A petition demanding his return just topped 140K signatures in a matter of days, Elon Musk’s among them, and big inves",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-11-16",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19725,
+   "url": "https://www.therundown.ai/articles/california-takes-openai-to-court",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "California takes OpenAI to court",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, AI enthusiasts, and welcome to our 5,143 new readers. When its test agents broke out in July and hacked Hugging Face, OpenAI called it “an unprecedented cyber incident” and promised to tighten security. California just filed its own account of what happened and wants to talk about it in court. The state’s new lawsuit claims the AI giant privately owned up to more than 80 agent esca",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-11-17",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19726,
+   "url": "https://www.therundown.ai/articles/tesla-cybercab-can-now-be-yours-sort-of",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Tesla's Cybercab can now be yours, sort of",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, robotics enthusiasts. Tesla now wants to sell you a car you can’t drive. The $29,990 Cybercab, a two-seat robotaxi with no steering wheel or pedals, is opening to select private buyers, but there are a few caveats. Its autonomy works only inside geofenced service zones, and the software doing the driving comes with a monthly bill that even Musk thinks is too expensive. In today’s",
    "issueUrl": "https://www.therundown.ai/articles",
    "blurb": null,
    "kind": null,

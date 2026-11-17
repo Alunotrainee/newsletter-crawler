@@ -760978,5 +760978,39 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19725,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/california-takes-openai-to-court",
+  "title": "California takes OpenAI to court",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, AI enthusiasts, and welcome to our 5,143 new readers. When its test agents broke out in July and hacked Hugging Face, OpenAI called it “an unprecedented cyber incident” and promised to tighten security. California just filed its own account of what happened and wants to talk about it in court. The state’s new lawsuit claims the AI giant privately owned up to more than 80 agent esca",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-17",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
+ },
+ {
+  "id": 19726,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/tesla-cybercab-can-now-be-yours-sort-of",
+  "title": "Tesla's Cybercab can now be yours, sort of",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, robotics enthusiasts. Tesla now wants to sell you a car you can’t drive. The $29,990 Cybercab, a two-seat robotaxi with no steering wheel or pedals, is opening to select private buyers, but there are a few caveats. Its autonomy works only inside geofenced service zones, and the software doing the driving comes with a monthly bill that even Musk thinks is too expensive. In today’s",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-16",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]
