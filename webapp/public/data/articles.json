@@ -761012,5 +761012,39 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19727,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/openai-newest-release-lands-to-rough-reviews",
+  "title": "OpenAI’s newest release lands to rough reviews",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, AI enthusiasts, and welcome to our 5,051 new readers. The AI world was waiting for OpenAI’s answer to Anthropic’s dominance on the charts. It finally landed days before its rival goes public… just not to the reception the company hoped for. GPT-6.2 Astra and Sol look solid on paper, if not a major leap. But the early reviews? Scathing. With Fable 5.2 still on top (and at least one",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-18",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
+ },
+ {
+  "id": 19728,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/the-us-has-an-outage-problem",
+  "title": "The U.S. has an outage problem",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, tech enthusiasts. Microsoft 365 went down worldwide, an FAA communications failure grounded departing flights across the U.S., and a Chase software bug disrupted payments across banks — all within a few days. The three failures were unrelated, but they all point to just how quickly modern life can go off the rails when the digital systems we rely on stop working. In today’s tech r",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-17",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]
