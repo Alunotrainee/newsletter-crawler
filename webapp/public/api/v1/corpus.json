@@ -1,22 +1,22 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-11-18T15:14:58.111Z",
+ "generatedAt": "2026-11-19T15:23:49.512Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19262,
+  "articles": 19263,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 750
+   "unknown": 751
   }
  },
  "dates": {
   "min": "2015-01-19",
-  "max": "2026-11-18"
+  "max": "2026-11-19"
  },
  "sources": [
   {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 406
+   "count": 407
   },
   {
    "id": 11,
@@ -765656,6 +765656,23 @@
    "kind": null,
    "section": null,
    "date": "2026-11-17",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19729,
+   "url": "https://www.therundown.ai/articles/google-shipping-spree-continues-with-neon",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Google’s shipping spree continues with Neon",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, AI enthusiasts, and welcome to our 12,783 new readers. Google spent most of 2026 being mocked for moving slowly. But something changed this fall, and it’s now shipping faster than ever. Maybe the key is, as Demis Hassabis put it, “alchemy at its finest.” The company’s new Neon model is the latest step up both the periodic table and the leaderboard, carrying a mid-tier label but wit",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-11-19",
    "verifyStatus": null,
    "tags": {}
   }

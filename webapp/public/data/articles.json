@@ -761046,5 +761046,22 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19729,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/google-shipping-spree-continues-with-neon",
+  "title": "Google’s shipping spree continues with Neon",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, AI enthusiasts, and welcome to our 12,783 new readers. Google spent most of 2026 being mocked for moving slowly. But something changed this fall, and it’s now shipping faster than ever. Maybe the key is, as Demis Hassabis put it, “alchemy at its finest.” The company’s new Neon model is the latest step up both the periodic table and the leaderboard, carrying a mid-tier label but wit",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-19",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]
