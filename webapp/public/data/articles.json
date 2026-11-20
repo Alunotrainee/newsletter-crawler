@@ -761063,5 +761063,39 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19730,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/anthropic-pulls-off-the-biggest-ipo-ever",
+  "title": "Anthropic pulls off the biggest IPO ever",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, AI enthusiasts, and welcome to our 6,136 new readers. Frontier AI is now public. Anthropic just listed on the Nasdaq in the largest-ever IPO, topping SpaceX’s record from just five months ago. The debut minted thousands of millionaires overnight and came with a promise from CEO Dario Amodei that safety, not business or political pressure, will set the pace of its models and way for",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-20",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
+ },
+ {
+  "id": 19731,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/waymo-shuts-down-freeway-rides-everywhere",
+  "title": "Waymo shuts down freeway rides everywhere",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, robotics enthusiasts. Waymo just got kicked off California’s freeways. Its robotaxis kept driving into active construction zones, even after a software recall, and Waymo has now pulled highway rides everywhere. It also didn’t help that an empty Waymo got stuck on San Diego trolley tracks this week and drove through the barrier. In today’s robotics rundown: Waymo pulls robotaxis o",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-19",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]

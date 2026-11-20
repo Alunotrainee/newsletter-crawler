@@ -1,22 +1,22 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-11-19T15:23:49.512Z",
+ "generatedAt": "2026-11-20T15:01:18.685Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19263,
+  "articles": 19265,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 751
+   "unknown": 753
   }
  },
  "dates": {
   "min": "2015-01-19",
-  "max": "2026-11-19"
+  "max": "2026-11-20"
  },
  "sources": [
   {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 407
+   "count": 409
   },
   {
    "id": 11,
@@ -765668,6 +765668,40 @@
    "titlePt": null,
    "summaryPt": null,
    "snippet": "Good morning, AI enthusiasts, and welcome to our 12,783 new readers. Google spent most of 2026 being mocked for moving slowly. But something changed this fall, and it’s now shipping faster than ever. Maybe the key is, as Demis Hassabis put it, “alchemy at its finest.” The company’s new Neon model is the latest step up both the periodic table and the leaderboard, carrying a mid-tier label but wit",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-11-19",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19730,
+   "url": "https://www.therundown.ai/articles/anthropic-pulls-off-the-biggest-ipo-ever",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Anthropic pulls off the biggest IPO ever",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, AI enthusiasts, and welcome to our 6,136 new readers. Frontier AI is now public. Anthropic just listed on the Nasdaq in the largest-ever IPO, topping SpaceX’s record from just five months ago. The debut minted thousands of millionaires overnight and came with a promise from CEO Dario Amodei that safety, not business or political pressure, will set the pace of its models and way for",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-11-20",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19731,
+   "url": "https://www.therundown.ai/articles/waymo-shuts-down-freeway-rides-everywhere",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Waymo shuts down freeway rides everywhere",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, robotics enthusiasts. Waymo just got kicked off California’s freeways. Its robotaxis kept driving into active construction zones, even after a software recall, and Waymo has now pulled highway rides everywhere. It also didn’t help that an empty Waymo got stuck on San Diego trolley tracks this week and drove through the barrier. In today’s robotics rundown: Waymo pulls robotaxis o",
    "issueUrl": "https://www.therundown.ai/articles",
    "blurb": null,
    "kind": null,
