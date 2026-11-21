@@ -1,17 +1,17 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-11-20T15:01:18.685Z",
+ "generatedAt": "2026-11-21T14:21:52.105Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19265,
+  "articles": 19266,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 753
+   "unknown": 754
   }
  },
  "dates": {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 409
+   "count": 410
   },
   {
    "id": 11,
@@ -765707,6 +765707,23 @@
    "kind": null,
    "section": null,
    "date": "2026-11-19",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19732,
+   "url": "https://www.therundown.ai/articles/gta-6-rakes-in-2-4b-overnight",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "GTA 6 rakes in $2.4B overnight",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, tech enthusiasts. Thirteen years of waiting, and Grand Theft Auto VI finally arrived this week — sending the internet into a frenzy. Tens of billions of clip views, nearly 8M concurrent livestream viewers, and hot takes flying from every corner of the gaming world. Count some of The Rundown staff among the hooked. In today’s tech rundown: GTA 6’s unhinged world goes viral Goog",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-11-20",
    "verifyStatus": null,
    "tags": {}
   }
