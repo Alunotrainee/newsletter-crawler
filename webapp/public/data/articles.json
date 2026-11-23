@@ -761114,5 +761114,22 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19733,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/claude-helps-solve-math-s-biggest-open-problem",
+  "title": "Claude helps solve math's biggest open problem",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, AI enthusiasts, and welcome to our 8,176 new readers. Few fields have changed more under AI this past year than math. Now, a single Anthropic mathematician and Claude may have solved a problem even the top minds thought was years, if not decades, away. Levent Alpöge says they just proved the Riemann hypothesis, a 167-year-old prime-number puzzle that carries a $1M Millennium Prize",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-23",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]
