@@ -1,22 +1,22 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-11-23T17:35:46.023Z",
+ "generatedAt": "2026-11-24T17:05:46.816Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19267,
+  "articles": 19269,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 755
+   "unknown": 757
   }
  },
  "dates": {
   "min": "2015-01-19",
-  "max": "2026-11-23"
+  "max": "2026-11-24"
  },
  "sources": [
   {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 411
+   "count": 413
   },
   {
    "id": 11,
@@ -765736,6 +765736,40 @@
    "titlePt": null,
    "summaryPt": null,
    "snippet": "Good morning, AI enthusiasts, and welcome to our 8,176 new readers. Few fields have changed more under AI this past year than math. Now, a single Anthropic mathematician and Claude may have solved a problem even the top minds thought was years, if not decades, away. Levent Alpöge says they just proved the Riemann hypothesis, a 167-year-old prime-number puzzle that carries a $1M Millennium Prize",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-11-23",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19734,
+   "url": "https://www.therundown.ai/articles/jensen-huang-returns-to-nvidia",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Jensen Huang returns to Nvidia",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, AI enthusiasts, and welcome to our 3,697 new readers. The Jensen Huang saga already felt like a movie. On Monday, the scandal that had rocked the tech world for weeks hit its climax — the return. Jensen is back in the captain's seat at Nvidia, leather jacket and all, after President Donald Trump personally lobbied the board and its members voted unanimously to reinstate him. With i",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-11-24",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19735,
+   "url": "https://www.therundown.ai/articles/nvidia-robot-king-returns",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Nvidia’s robot king returns",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, robotics enthusiasts. Robotics’ post-Jensen Huang era lasted just 11 days. Nvidia’s board brought him back as CEO on Monday, likely a relief for the 35-plus robotics startups Nvidia has backed — especially the ones the company was calling to reassure while he was gone. Also: A Chinese humanoid startup wheels its way to a $1.6B valuation, and the UN ends a week of killer-robot talks b",
    "issueUrl": "https://www.therundown.ai/articles",
    "blurb": null,
    "kind": null,

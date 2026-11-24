@@ -761131,5 +761131,39 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19734,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/jensen-huang-returns-to-nvidia",
+  "title": "Jensen Huang returns to Nvidia",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, AI enthusiasts, and welcome to our 3,697 new readers. The Jensen Huang saga already felt like a movie. On Monday, the scandal that had rocked the tech world for weeks hit its climax — the return. Jensen is back in the captain's seat at Nvidia, leather jacket and all, after President Donald Trump personally lobbied the board and its members voted unanimously to reinstate him. With i",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-24",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
+ },
+ {
+  "id": 19735,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/nvidia-robot-king-returns",
+  "title": "Nvidia’s robot king returns",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, robotics enthusiasts. Robotics’ post-Jensen Huang era lasted just 11 days. Nvidia’s board brought him back as CEO on Monday, likely a relief for the 35-plus robotics startups Nvidia has backed — especially the ones the company was calling to reassure while he was gone. Also: A Chinese humanoid startup wheels its way to a $1.6B valuation, and the UN ends a week of killer-robot talks b",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-23",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]
