@@ -1,22 +1,22 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-11-24T17:05:46.816Z",
+ "generatedAt": "2026-11-25T16:56:22.428Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19269,
+  "articles": 19271,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 757
+   "unknown": 759
   }
  },
  "dates": {
   "min": "2015-01-19",
-  "max": "2026-11-24"
+  "max": "2026-11-25"
  },
  "sources": [
   {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 413
+   "count": 415
   },
   {
    "id": 11,
@@ -765775,6 +765775,40 @@
    "kind": null,
    "section": null,
    "date": "2026-11-23",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19736,
+   "url": "https://www.therundown.ai/articles/three-xai-founders-want-ai-to-predict-the-future",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Three xAI founders want AI to predict the future",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, AI enthusiasts, and welcome to our 3,907 new readers. Every AI lab trains on the internet. Three of xAI's founding members are taking that logic a step further, and they think it could be the answer to helping AI predict the future. Their new startup, Epochal, is giving AI agents a “time machine” to relive 30+ years of the web one date at a time — an experience they believe could u",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-11-25",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19737,
+   "url": "https://www.therundown.ai/articles/cybersecurity-gets-a-44b-merger",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Cybersecurity gets a $44B merger",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, tech enthusiasts. Hackers spent the past few weeks breaking into banks, crypto platforms, and even supermarket fridges, some with the help of AI. Now the industry is consolidating to fight back, with CrowdStrike buying Zscaler for $43.9B in the biggest cybersecurity deal ever, aimed at protecting every device and connection under one roof. In today’s tech rundown: CrowdStrike buy",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-11-24",
    "verifyStatus": null,
    "tags": {}
   }

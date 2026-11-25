@@ -761165,5 +761165,39 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19736,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/three-xai-founders-want-ai-to-predict-the-future",
+  "title": "Three xAI founders want AI to predict the future",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, AI enthusiasts, and welcome to our 3,907 new readers. Every AI lab trains on the internet. Three of xAI's founding members are taking that logic a step further, and they think it could be the answer to helping AI predict the future. Their new startup, Epochal, is giving AI agents a “time machine” to relive 30+ years of the web one date at a time — an experience they believe could u",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-25",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
+ },
+ {
+  "id": 19737,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/cybersecurity-gets-a-44b-merger",
+  "title": "Cybersecurity gets a $44B merger",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, tech enthusiasts. Hackers spent the past few weeks breaking into banks, crypto platforms, and even supermarket fridges, some with the help of AI. Now the industry is consolidating to fight back, with CrowdStrike buying Zscaler for $43.9B in the biggest cybersecurity deal ever, aimed at protecting every device and connection under one roof. In today’s tech rundown: CrowdStrike buy",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-24",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]
