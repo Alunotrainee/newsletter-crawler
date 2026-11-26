@@ -761199,5 +761199,22 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19738,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/your-ai-cheat-sheet-for-thanksgiving-dinner",
+  "title": "Your AI cheat sheet for Thanksgiving dinner",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, AI enthusiasts, and welcome to our 4,638 new readers. Thanksgiving is here, and for many of us, that means plenty of catching up around the dinner table. If the conversation goes anything like the news cycle, AI may be a main course. Last year, that might’ve meant explaining ChatGPT to a relative. This year, the questions are about the Chinese spy saga, everything being hacked, data",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-26",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]

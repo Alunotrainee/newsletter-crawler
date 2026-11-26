@@ -1,22 +1,22 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-11-25T16:56:22.428Z",
+ "generatedAt": "2026-11-26T16:33:12.116Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19271,
+  "articles": 19272,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 759
+   "unknown": 760
   }
  },
  "dates": {
   "min": "2015-01-19",
-  "max": "2026-11-25"
+  "max": "2026-11-26"
  },
  "sources": [
   {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 415
+   "count": 416
   },
   {
    "id": 11,
@@ -765809,6 +765809,23 @@
    "kind": null,
    "section": null,
    "date": "2026-11-24",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19738,
+   "url": "https://www.therundown.ai/articles/your-ai-cheat-sheet-for-thanksgiving-dinner",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Your AI cheat sheet for Thanksgiving dinner",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, AI enthusiasts, and welcome to our 4,638 new readers. Thanksgiving is here, and for many of us, that means plenty of catching up around the dinner table. If the conversation goes anything like the news cycle, AI may be a main course. Last year, that might’ve meant explaining ChatGPT to a relative. This year, the questions are about the Chinese spy saga, everything being hacked, data",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-11-26",
    "verifyStatus": null,
    "tags": {}
   }
