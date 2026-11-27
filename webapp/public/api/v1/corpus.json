@@ -1,22 +1,22 @@
 {
  "schemaVersion": 1,
- "generatedAt": "2026-11-26T16:33:12.116Z",
+ "generatedAt": "2026-11-27T16:18:39.332Z",
  "documentation": "/api/v1/README.md",
  "schema": "/api/v1/schema.json",
  "totals": {
-  "articles": 19272,
+  "articles": 19274,
   "summaries": 18965,
   "classified": 19191,
   "byKind": {
    "news": 11514,
    "tool": 4250,
    "release": 2748,
-   "unknown": 760
+   "unknown": 762
   }
  },
  "dates": {
   "min": "2015-01-19",
-  "max": "2026-11-26"
+  "max": "2026-11-27"
  },
  "sources": [
   {
@@ -67,7 +67,7 @@
   {
    "id": 7,
    "name": "The Rundown",
-   "count": 416
+   "count": 418
   },
   {
    "id": 11,
@@ -765821,6 +765821,40 @@
    "titlePt": null,
    "summaryPt": null,
    "snippet": "Good morning, AI enthusiasts, and welcome to our 4,638 new readers. Thanksgiving is here, and for many of us, that means plenty of catching up around the dinner table. If the conversation goes anything like the news cycle, AI may be a main course. Last year, that might’ve meant explaining ChatGPT to a relative. This year, the questions are about the Chinese spy saga, everything being hacked, data",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-11-26",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19739,
+   "url": "https://www.therundown.ai/articles/ai-takes-a-swing-at-physics-biggest-puzzle",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "AI takes a swing at physics' biggest puzzle",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, AI enthusiasts, and welcome to our 5,002 new readers. The past few months have been all about AI cracking decades-old math problems. Now it’s taking on a physics puzzle unsolved for nearly a century. Stanford physicist Venkatesa Chandrasekaran just proposed a quantum theory of gravity, developed with help from GPT-6 Astra, that could tie together the physics of planets and particle",
+   "issueUrl": "https://www.therundown.ai/articles",
+   "blurb": null,
+   "kind": null,
+   "section": null,
+   "date": "2026-11-27",
+   "verifyStatus": null,
+   "tags": {}
+  },
+  {
+   "id": 19740,
+   "url": "https://www.therundown.ai/articles/your-future-housekeeper-might-be-an-xpeng",
+   "sourceId": 7,
+   "sourceName": "The Rundown",
+   "title": "Your future housekeeper might be an XPeng",
+   "titlePt": null,
+   "summaryPt": null,
+   "snippet": "Good morning, robotics enthusiasts. China’s XPeng has unveiled an upgraded IRON humanoid that could greet car buyers by early 2027 — and tackle household chores a year or two after that. The move intensifies a race against Tesla, Figure AI, and a growing field of Chinese robotics companies looking to turn impressive humanoid demos into commercially useful machines, with the home robot as the ult",
    "issueUrl": "https://www.therundown.ai/articles",
    "blurb": null,
    "kind": null,

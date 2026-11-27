@@ -761216,5 +761216,39 @@
   "verify_status": null,
   "verify_notes": null,
   "tags": {}
+ },
+ {
+  "id": 19739,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/ai-takes-a-swing-at-physics-biggest-puzzle",
+  "title": "AI takes a swing at physics' biggest puzzle",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, AI enthusiasts, and welcome to our 5,002 new readers. The past few months have been all about AI cracking decades-old math problems. Now it’s taking on a physics puzzle unsolved for nearly a century. Stanford physicist Venkatesa Chandrasekaran just proposed a quantum theory of gravity, developed with help from GPT-6 Astra, that could tie together the physics of planets and particle",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-27",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
+ },
+ {
+  "id": 19740,
+  "source_id": 7,
+  "url": "https://www.therundown.ai/articles/your-future-housekeeper-might-be-an-xpeng",
+  "title": "Your future housekeeper might be an XPeng",
+  "title_pt": null,
+  "summary_pt": null,
+  "snippet": "Good morning, robotics enthusiasts. China’s XPeng has unveiled an upgraded IRON humanoid that could greet car buyers by early 2027 — and tackle household chores a year or two after that. The move intensifies a race against Tesla, Figure AI, and a growing field of Chinese robotics companies looking to turn impressive humanoid demos into commercially useful machines, with the home robot as the ult",
+  "issue_url": "https://www.therundown.ai/articles",
+  "blurb": null,
+  "date_iso": "2026-11-26",
+  "kind": null,
+  "section": null,
+  "verify_status": null,
+  "verify_notes": null,
+  "tags": {}
  }
 ]
